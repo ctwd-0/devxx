@@ -98,13 +98,11 @@ CTWD.XBJLoader.prototype = {
 		buffergeometry.computeVertexNormals();
 		buffergeometry.name = geometry.name;
 
-		materials = {
-			name   : '',
-			smooth : true,
-			side   : THREE.DoubleSide
-		};
+		material = new THREE.MeshPhongMaterial();
+		material.shading = THREE.SmoothShading;
+		material.side = THREE.DoubleSide;
 		
-		mesh = new THREE.Mesh(buffergeometry, materials);
+		mesh = new THREE.Mesh(buffergeometry, material);
 		mesh.name = geometry.name;
 		container = new THREE.Group();
 		container.add(mesh);
