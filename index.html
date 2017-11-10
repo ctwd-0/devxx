@@ -1,0 +1,431 @@
+<!DOCTYPE html>
+<html lang="zh-cn">
+	<head>
+		<title>灵沼轩</title>
+		<meta charset="utf-8">
+		<meta name="viewport" content="width=device-width, user-scalable=no, minimum-scale=1.0, maximum-scale=1.0">
+		<style>
+			body {
+				font-family: Monospace;
+				background-color: #000;
+				color: #fff;
+				margin: 0px;
+				overflow: hidden;
+			}
+			#info {
+				color: #fff;
+				position: absolute;
+				top: 10px;
+				width: 100%;
+				text-align: center;
+				z-index: 100;
+				display:block;
+			}
+			#info a, .button { color: #f00; font-weight: bold; text-decoration: underline; cursor: pointer }
+		</style>
+	</head>
+
+	<body>
+	<!--
+		<div id="info">
+		<a href="http://threejs.org" target="_blank">three.js</a> - OBJLoader test
+		</div>
+	!-->
+		<script src="js/three.js"></script>
+		
+		<!--script src="js/OBJLoader.js"></script!-->
+		
+		<script src="js/xbj_loader.js"></script>
+		
+		<script src="js/TrackballControls.js"></script>
+		
+		<script src="js/stats.min.js"></script>
+		
+		<script>
+			
+			var full_paths = [], simplified_paths = [];
+			var container,stats;
+			
+			var camera, controls, scene, renderer;
+
+			//var mouseX = 0, mouseY = 0;
+			
+			var directionalLight;
+			
+			var windowHalfX = window.innerWidth / 2;
+			var windowHalfY = window.innerHeight / 2;
+			var mouse = new THREE.Vector2();
+
+			var raycaster, INTERSECTED;
+			
+			var scene_2, renderer_2, controls_2, camera_2;
+			var directional_light_2;
+			var is_scene_2 = false;
+			
+			init();
+			animate();
+
+			// function on_full(file) {
+			// 	files = file.split('\n');
+			// 	files.forEach(function(f){
+			// 		if(f !== '') {
+			// 			full_paths.push(f);
+			// 		}
+			// 	});
+				
+			// 	if(full_paths.length != 0 && simplified_paths.length != 0) {
+			// 		on_load_obj();
+			// 	}
+			// }
+			
+			// function on_simplified(file) {
+			// 	files = file.split('\n');
+			// 	files.forEach(function(f){
+			// 		if(f !== '') {
+			// 			simplified_paths.push(f);
+			// 		}
+			// 	});
+				
+			// 	if(full_paths.length != 0 && simplified_paths.length != 0) {
+			// 		on_load_obj();
+			// 	}
+			// }
+			
+			// function on_load_obj() {
+			// 	simplified_paths.forEach(function(path) {
+			// 		var loader = new THREE.OBJLoader();
+			// 		loader.load( path, function ( object ) {
+			// 			//console.log(path);
+			// 			object.path = path;
+			// 			object.children.forEach(function(mesh) {
+			// 				mesh.path = path;
+			// 			});
+			// 			object.traverse(function(child) {
+			// 				if (child instanceof THREE.Mesh) { 
+			// 					child.material.side = THREE.DoubleSide;
+			// 				};
+			// 			});
+			// 			scene.add( object );
+			// 		});
+			// 	});
+			// }
+			var metadata = {};
+			var lookup = {};
+			var group_info = {};
+			var group_count, root_groups = [];
+			var meta_ready_count = 0;
+			function on_metadata(file_metadata) {
+				var lines = file_metadata.split('\n');
+				lines.forEach(function(line) {
+					if(line != '') {
+						meta = line.split(' ');
+						if(meta.length == 2) {
+							metadata[meta[0]] = meta[1];
+						}
+					}
+				});
+				on_meta_index_group_ready();
+			}
+			
+			function on_lookup(file_lookup) {
+				var lines = file_lookup.split('\n');
+				lines.forEach(function(line) {
+					if(line != '') {
+						look = line.split(' ');
+						if(look.length == 3) {
+							lookup[look[0]] = {
+								file: look[1],
+								offset: look[2]
+							};
+						}
+					}
+				});
+				on_meta_index_group_ready();
+			}
+
+			function on_group_info(file_group_info) {
+				var lines = file_group_info.split('\n');
+				group_count = lines[0];
+				root_groups = lines[2].trim().split(' ');
+				var pos = 3
+				while (pos + 4 < lines.length) {
+					group_name = lines[pos].trim();
+					group_info[group_name] = {
+						groups:lines[pos+2].trim().split(' '),
+						objects: lines[pos+4].trim().split(' ')
+					}
+					if(group_info[group_name].groups.length == 1 && group_info[group_name].groups[0] === '') {
+						group_info[group_name].groups = [];
+					}
+					if(group_info[group_name].objects.length == 1 && group_info[group_name].objects[0] === '') {
+						group_info[group_name].objects = [];
+					}
+					pos += 5;
+				}
+				on_meta_index_group_ready();
+			}
+			
+			function on_meta_index_group_ready() {
+				meta_ready_count++;
+				if(meta_ready_count == 3) {
+					//alert('meta_ready!');
+					load_root_groups();
+				}
+			}
+			
+			function load_root_groups() {
+				var mesh_to_load = make_up_load_list(root_groups);
+				load_xbj(mesh_to_load);
+			}
+
+			function make_up_load_list(groups) {
+				var mesh_to_load = {files:[]};
+				groups.forEach(function(group) {
+					group_info[group].groups.forEach(function(sub_group) {
+						component_name = 'g_' + group + '_g_' + sub_group;
+						file = lookup[component_name].file;
+						offset = lookup[component_name].offset;
+						if(mesh_to_load[file] == null) {
+							mesh_to_load[file] = [];
+							mesh_to_load.files.push(file);
+						}
+						mesh_to_load[file].push({
+							component_name: component_name,
+							offset: offset,
+						});
+
+					});
+					group_info[group].objects.forEach(function(object) {
+						component_name = 'g_' + group + '_o_' + object;
+						if(lookup[component_name] == null) {
+							component_name = 'o_' + object;
+						}
+						file = lookup[component_name].file;
+						offset = lookup[component_name].offset;
+						if(mesh_to_load[file] == null) {
+							mesh_to_load[file] = [];
+							mesh_to_load.files.push(file);
+						}
+						mesh_to_load[file].push({
+							component_name: component_name,
+							offset: offset,
+						});
+					});
+				});
+				return mesh_to_load;
+			}
+
+			function init() {
+
+				container = document.createElement( 'div' );
+				document.body.appendChild( container );
+
+				camera = new THREE.PerspectiveCamera( 60, window.innerWidth / window.innerHeight, 1, 80000 );
+				camera.position.z = 40000;
+
+				controls = new THREE.TrackballControls( camera );
+				controls.rotateSpeed = 1.2;
+				controls.zoomSpeed = 1.2;
+				controls.panSpeed = 0.8;
+				controls.noZoom = false;
+				controls.noPan = false;
+				controls.staticMoving = true;
+				controls.dynamicDampingFactor = 0.3;
+				
+				// scene
+
+				scene = new THREE.Scene();
+
+				var ambient = new THREE.AmbientLight( 0x202020 );
+				scene.add( ambient );
+
+				directionalLight = new THREE.DirectionalLight( 0xffffff );
+				directionalLight.position.set( 0, 0, 1 );
+				scene.add( directionalLight );
+
+				var loader_metadata = new THREE.FileLoader();
+				var loader_lookup = new THREE.FileLoader();
+				var loader_group_info = new THREE.FileLoader();
+				
+				loader_metadata.load('model\\_metadata', function(file) {
+					on_metadata(file);
+				});
+				
+				loader_lookup.load('model\\_lookup', function(file) {
+					on_lookup(file);
+				});
+				
+				loader_group_info.load('model\\_group_info', function(file) {
+					on_group_info(file);
+				});
+				
+				raycaster = new THREE.Raycaster();
+				
+				renderer = new THREE.WebGLRenderer({antialias:true});
+				renderer.setPixelRatio( window.devicePixelRatio );
+				renderer.setSize( window.innerWidth, window.innerHeight );
+				container.appendChild( renderer.domElement );
+
+				stats = new Stats();
+				container.appendChild( stats.dom );
+				
+				window.addEventListener( 'dblclick', on_double_click );
+				
+				window.addEventListener( 'resize', onWindowResize, false );
+			}
+
+			function adjust_camera_and_add_to_scene(object) {
+				var bbox = new THREE.Box3().setFromObject(object, true);
+				var center = new THREE.Vector3(
+					(bbox.min.x + bbox.max.x)/2, (bbox.min.y + bbox.max.y)/2, (bbox.min.z + bbox.max.z)/2);
+				var radius = center.clone().sub(bbox.min).length();
+				//alert(radius);
+				mesh = object.children[0];
+				mesh.scale.set( 1.0/radius, 1.0/radius, 1.0/radius);
+				mesh.position.set(-center.x/radius, -center.y / radius, -center.z / radius);
+				mesh.material.side = THREE.DoubleSide;
+				
+				scene_2.add(mesh);
+			}
+			
+			function change_scene(path) {
+				controls.enabled = false;
+				
+				scene_2 = new THREE.Scene();
+
+				var ambient = new THREE.AmbientLight( 0x202020 );
+				scene_2.add( ambient );
+
+				directional_light_2 = new THREE.DirectionalLight( 0xffffff );
+				directional_light_2.position.set( 0, 0, 1 );
+				scene_2.add( directional_light_2 );
+				
+				
+				camera_2 = new THREE.PerspectiveCamera( 60, window.innerWidth / window.innerHeight, 0.1, 100);
+				camera_2.position.x = 0;
+				camera_2.position.y = 0;
+				camera_2.position.z = 2;
+				camera_2.lookAt(scene_2.position);
+				scene_2.add(camera_2);
+				
+				controls_2 = new THREE.TrackballControls( camera_2 );
+				controls_2.rotateSpeed = 5;
+				controls_2.zoomSpeed = 5;
+				controls_2.panSpeed =5;
+				controls_2.noZoom = false;
+				controls_2.noPan = false;
+				controls_2.staticMoving = true;
+				controls_2.dynamicDampingFactor = 0.3;
+				
+				
+				renderer_2 = new THREE.WebGLRenderer({antialias:true});
+				renderer_2.setPixelRatio( window.devicePixelRatio );
+				renderer_2.setSize( window.innerWidth, window.innerHeight );
+				
+				container.removeChild(renderer.domElement);
+				
+				container.appendChild(renderer_2.domElement);
+				
+				file = path.split('\\')[1];
+				path = "full\\" + file;
+				//alert(path);
+				
+				var loader = new THREE.OBJLoader();
+				loader.load( path, function ( object ) {
+					//scene_2.add( object );
+					
+					adjust_camera_and_add_to_scene(object);
+				});
+				
+				is_scene_2 = true;
+			}
+			
+			function back_to_scene_1() {
+				controls.enabled = true;
+				
+				is_scene_2 = false;
+				
+				container.removeChild(renderer_2.domElement);
+				
+				container.appendChild(renderer.domElement );
+				
+				scene_2 = null;
+				directional_light_2 = null;
+				camera_2 = null;
+				controls_2 = null;
+				renderer_2 = null;
+				
+			}
+			
+			function on_double_click(event) {
+				if(!is_scene_2) {
+					mouse.x = ( event.clientX / window.innerWidth ) * 2 - 1;
+					mouse.y = - ( event.clientY / window.innerHeight ) * 2 + 1;
+					
+					raycaster.setFromCamera( mouse, camera );
+					var origin = raycaster.ray.origin;
+					var direction = raycaster.ray.direction;
+					var intersects = raycaster.intersectObjects( scene.children, true);
+					if ( intersects.length > 0 ) {
+						change_scene(intersects[ 0 ].object.path);
+					}
+				} else {
+					back_to_scene_1();
+				}
+			}
+			
+			function onWindowResize() {
+
+				windowHalfX = window.innerWidth / 2;
+				windowHalfY = window.innerHeight / 2;
+
+				camera.aspect = window.innerWidth / window.innerHeight;
+				camera.updateProjectionMatrix();
+
+				renderer.setSize( window.innerWidth, window.innerHeight );
+					
+				if(is_scene_2) {
+					camera_2.aspect = window.innerWidth / window.innerHeight;
+					camera_2.updateProjectionMatrix();
+
+					renderer_2.setSize( window.innerWidth, window.innerHeight );
+				}
+
+			}
+
+			function animate() {
+
+				requestAnimationFrame( animate );
+				
+				render();
+				
+				stats.update();
+			}
+
+			function render() {
+				
+				if(!is_scene_2) {
+					controls.update();
+					
+					directionalLight.position.x = camera.position.x;
+					directionalLight.position.y = camera.position.y;
+					directionalLight.position.z = camera.position.z;
+					
+					renderer.render( scene, camera );
+					
+				} else {
+					
+					controls_2.update();
+					
+					directional_light_2.position.x = camera_2.position.x;
+					directional_light_2.position.y = camera_2.position.y;
+					directional_light_2.position.z = camera_2.position.z;
+					
+					renderer_2.render(scene_2, camera_2);
+				}
+			}
+
+		</script>
+
+	</body>
+</html>
