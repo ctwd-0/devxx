@@ -33,8 +33,6 @@
 	!-->
 		<script src="js/three.js"></script>
 		
-		<!--script src="js/OBJLoader.js"></script!-->
-		
 		<script src="js/xbj_loader.js"></script>
 		
 		<script src="js/TrackballControls.js"></script>
@@ -114,6 +112,9 @@
 			var group_info = {};
 			var group_count, root_groups = [];
 			var meta_ready_count = 0;
+
+			var xbj_loader = new CTWD.XBJLoader();
+
 			function on_metadata(file_metadata) {
 				var lines = file_metadata.split('\n');
 				lines.forEach(function(line) {
@@ -135,7 +136,7 @@
 						if(look.length == 3) {
 							lookup[look[0]] = {
 								file: look[1],
-								offset: look[2]
+								offset: parseInt( look[2], 10 )
 							};
 						}
 					}
@@ -176,6 +177,19 @@
 			function load_root_groups() {
 				var mesh_to_load = make_up_load_list(root_groups);
 				load_xbj(mesh_to_load);
+			}
+
+			function load_xbj(mesh_to_load) {
+				mesh_to_load.files.forEach(function (file) {
+					var file_loader = new THREE.FileLoader();
+					file_loader.setResponseType('arraybuffer');
+					file_loader.load('model\\' + file, function(binary) {
+						mesh_to_load[file].forEach(function(component) {
+							var mesh = xbj_loader.load(binary, component.offset);
+							scene.add( mesh );
+						});
+					});
+				});
 			}
 
 			function make_up_load_list(groups) {
