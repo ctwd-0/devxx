@@ -10,6 +10,7 @@ CTWD.XBJLoader = function() {
 //   return new Int16Array(buffer)[0] === 256;
 // })();
 var is_little = true;
+var random_shift = true;
 //console.log(littleEndian);
 
 CTWD.XBJLoader.prototype = {
@@ -103,10 +104,11 @@ CTWD.XBJLoader.prototype = {
 		material.side = THREE.DoubleSide;
 		
 		mesh = new THREE.Mesh(buffergeometry, material);
-		mesh.name = geometry.name;
-		container = new THREE.Group();
-		container.add(mesh);
+		mesh.name = buffergeometry.name;
 
-		return container;
+		//container = new THREE.Group();
+		//container.add(mesh);
+
+		return mesh;
 	}
 };
