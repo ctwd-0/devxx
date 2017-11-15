@@ -18,8 +18,6 @@ var meta_ready_count = 0;
 
 var xbj_loader = new CTWD.XBJLoader();
 
-var meshes = {};
-
 function on_metadata(file_metadata) {
 	var lines = file_metadata.split('\n');
 	lines.forEach(function(line) {
@@ -76,27 +74,78 @@ function on_meta_index_group_ready() {
 	if(meta_ready_count == 3) {
 		//alert('meta_ready!');
 		load_root_groups();
+		current_model = 'g_' + root_groups[0];
 	}
 }
 
 function load_root_groups() {
 	var mesh_to_load = make_up_load_list(root_groups);
-	load_xbj(mesh_to_load);
+	load_xbjs_and_add_to_scene(mesh_to_load);
 }
 
-function load_xbj(mesh_to_load) {
+function load_xbjs_and_add_to_scene(mesh_to_load) {
 	mesh_to_load.files.forEach(function (file) {
 		var file_loader = new THREE.FileLoader();
 		file_loader.setResponseType('arraybuffer');
 		file_loader.load('model\\' + file, function(binary) {
 			mesh_to_load[file].forEach(function(component) {
 				var mesh = xbj_loader.load(binary, component.offset);
+				if(component.as_name !== undefined) {
+					mesh.name = component.as_name;
+				}
+				root_meshes[mesh.name] = mesh;
 				scene.add( mesh );
-				//console.log(mesh.name);
-				meshes[mesh.name] = mesh;
 			});
 		});
 	});
+}
+
+function load_xbjs_adn_add_to_cache(mesh_to_load, cache, on_loading_finished) {
+	var ready_files = [];
+	mesh_to_load.files.forEach(function (file) {
+		var file_loader = new THREE.FileLoader();
+		file_loader.setResponseType('arraybuffer');
+		file_loader.load('model\\' + file, function(binary) {
+			mesh_to_load[file].forEach(function(component) {
+				var mesh = xbj_loader.load(binary, component.offset);
+				if(component.as_name !== undefined) {
+					mesh.name = component.as_name;
+				}
+				cache[mesh.name] = mesh;
+			});
+			ready_files.push(file);
+			if(ready_files.length === mesh_to_load.files.length) {
+				on_loading_finished();
+			}
+		});
+	});
+}
+
+function check_lookup(component_name, objcet_to_fill, as_name) {
+	file = lookup[component_name].file;
+	offset = lookup[component_name].offset;
+	if(objcet_to_fill[file] === undefined) {
+		objcet_to_fill[file] = [];
+		objcet_to_fill.files.push(file);
+	}
+
+	object = {
+		component_name: component_name,
+		offset: offset,
+	};
+	if(as_name !== undefined) {
+		object.as_name = as_name;
+	}
+	objcet_to_fill[file].push(object);
+}
+
+function check_objects_files(objects) {
+	mesh_to_load = {files:[]};
+	objects.forEach(function(object) {
+		component_name = 'o_' + object;
+		check_lookup(component_name, mesh_to_load);
+	});
+	return mesh_to_load;
 }
 
 function make_up_load_list(groups) {
@@ -104,37 +153,168 @@ function make_up_load_list(groups) {
 	groups.forEach(function(group) {
 		group_info[group].groups.forEach(function(sub_group) {
 			component_name = 'g_' + group + '_g_' + sub_group;
-			file = lookup[component_name].file;
-			offset = lookup[component_name].offset;
-			if(mesh_to_load[file] == null) {
-				mesh_to_load[file] = [];
-				mesh_to_load.files.push(file);
-			}
-			mesh_to_load[file].push({
-				component_name: component_name,
-				offset: offset,
-			});
-
+			check_lookup(component_name, mesh_to_load);
 		});
 		group_info[group].objects.forEach(function(object) {
 			component_name = 'g_' + group + '_o_' + object;
-			if(lookup[component_name] == null) {
+			if(lookup[component_name] === undefined) {
+				as_name = component_name;
 				component_name = 'o_' + object;
+				check_lookup(component_name, mesh_to_load, as_name);
+			} else {
+				check_lookup(component_name, mesh_to_load);
 			}
-			file = lookup[component_name].file;
-			offset = lookup[component_name].offset;
-			if(mesh_to_load[file] == null) {
-				mesh_to_load[file] = [];
-				mesh_to_load.files.push(file);
-			}
-			mesh_to_load[file].push({
-				component_name: component_name,
-				offset: offset,
-			});
 		});
 	});
-
 	return mesh_to_load;
+}
+
+function random_color() {
+	return new THREE.Color(Math.random(), Math.random(), Math.random());
+}
+
+
+
+var STATE = { NONE: -1, CHANGE_FOCOUS: 1 };
+var target0, target1, position0, position1;
+var start_time;
+var change_focous_duration = 500;
+var state = STATE.NONE;
+
+
+var low_resolution_meshes = {};
+
+var high_resolution_meshes = {};
+
+var hr_meshes_to_load = [];
+
+var root_meshes = {};
+
+var current_meshes = {};
+
+var model_stack = [];
+
+var current_model = '';
+
+var hr_mesh_ready_unchanged = {};
+
+var focous_name = '';
+
+function clear_transparency_and_color(meshes) {
+	for(var key in meshes) {
+		meshes[key].material.color = new THREE.Color(1,1,1);
+		meshes[key].material.transparent = false;
+	}
+}
+
+function change_meshes_and_backup(name) {
+	if(state == STATE.NONE) {
+		if(current_model === 'g_' + root_groups[0]) {
+			low_resolution_meshes = root_meshes;
+		} else {
+			low_resolution_meshes = current_meshes;
+		}
+		model_stack.push({
+			model_name: current_model,
+			model_meshes: low_resolution_meshes
+		});
+
+		for(var key in low_resolution_meshes) {
+			scene.remove(low_resolution_meshes[key]);
+		}
+		for(var key in high_resolution_meshes) {
+			scene.add(high_resolution_meshes[key]);
+		}
+		current_meshes = high_resolution_meshes;
+		current_model = name;
+		clear_transparency_and_color(low_resolution_meshes);
+	} else {
+		hr_mesh_ready_unchanged = {
+			name:name,
+		};
+	}
+}
+
+function prepare_hr_meshes(name) {
+	info = name.split('_');
+	if(info.length === 2) {
+		//这已经是最后一层了
+		return;
+	} else if(info.length === 4) {
+		group = parseInt(info[1], 10);
+		next = parseInt(info[3], 10);
+		if(info[2] === 'g') {
+			hr_meshes_to_load = make_up_load_list([info[3]]);
+		} else if(info[2] === 'o'){
+			name_hr_meshes = [];
+			name_hr_meshes.push('o' + next);
+			hr_meshes_to_load = check_objects_files([info[3]]);
+		} else {
+			console.log('error prepare_hr_meshes. type: ', info[2]);
+			return;
+		}
+		high_resolution_meshes = {};
+		load_xbjs_adn_add_to_cache(hr_meshes_to_load, high_resolution_meshes, function() {
+			change_meshes_and_backup(info[2] + '_' + info[3]);
+		});
+	} else {
+		console.log('error prepare_hr_meshes. name: ', name);
+	}
+}
+
+function change_focous(mesh) {
+	name = mesh.name;
+	info = name.split('_');
+	if(info.length == 2) {
+		//这已经是最后一层了
+		return;
+	} else {
+		box = new THREE.Box3();
+		box.setFromObject(mesh);
+		target1 = box.getCenter();
+		target0 = controls.target.clone();
+		position0 = camera.position.clone();
+		size = box.getSize().length();
+		direction = position0.clone().sub(target0).normalize();
+		position1 = target1.clone().add(direction.setLength(size));
+		controls = null;
+		start_time = new Date().getTime();
+		state = STATE.CHANGE_FOCOUS;
+		focous_name = name;
+		prepare_hr_meshes(name);
+	}
+}
+
+function force_select(name) {
+
+}
+
+function on_double_click(event) {
+	mouse.x = ( event.clientX / window.innerWidth ) * 2 - 1;
+	mouse.y = - ( event.clientY / window.innerHeight ) * 2 + 1;
+	
+	raycaster.setFromCamera( mouse, camera );
+	var origin = raycaster.ray.origin;
+	var direction = raycaster.ray.direction;
+	var intersects = raycaster.intersectObjects( scene.children, true);
+	if ( intersects.length > 0 ) {
+		//change_scene(intersects[ 0 ].object.path);
+		//alert(intersects[0].object.name);
+		intersects[0].object.material.color = random_color();
+		change_focous(intersects[0].object);
+	}
+}
+
+function onWindowResize() {
+
+	windowHalfX = window.innerWidth / 2;
+	windowHalfY = window.innerHeight / 2;
+
+	camera.aspect = window.innerWidth / window.innerHeight;
+	camera.updateProjectionMatrix();
+
+	renderer.setSize( window.innerWidth, window.innerHeight );
+
 }
 
 function init(box) {
@@ -147,7 +327,7 @@ function init(box) {
 	container = document.createElement( 'div' );
 	document.body.appendChild( container );
 
-	camera = new THREE.PerspectiveCamera( 60, window.innerWidth / window.innerHeight, 1, 80000 );
+	camera = new THREE.PerspectiveCamera( 60, window.innerWidth / window.innerHeight, 1, 100000 );
 	camera.position.copy(position);
 	camera.lookAt(target.clone());
 	
@@ -182,6 +362,8 @@ function init(box) {
 		on_group_info(file);
 	});
 	
+	current_meshes = root_meshes;
+
 	raycaster = new THREE.Raycaster();
 	
 	renderer = new THREE.WebGLRenderer({antialias:true});
@@ -195,72 +377,6 @@ function init(box) {
 	window.addEventListener( 'dblclick', on_double_click );
 	
 	window.addEventListener( 'resize', onWindowResize, false );
-}
-
-function random_color() {
-	return new THREE.Color(Math.random(), Math.random(), Math.random());
-}
-
-var STATE = { NONE: -1, CHANGE_FOCOUS: 1 };
-var target0, target1, position0, position1;
-var start_time;
-var change_focous_duration = 500;
-var state = STATE.NONE;
-
-function change_focous(mesh) {
-	name = mesh.name;
-	info = name.split('_');
-	if(info.length == 2) {
-		//do_nothing();
-		//这已经是最后一层了
-	} else {
-		box = new THREE.Box3();
-		box.setFromObject(mesh);
-		target1 = box.getCenter();
-		target0 = controls.target.clone();
-		position0 = camera.position.clone();
-		size = box.getSize().length();
-		direction = position0.clone().sub(target0).normalize();
-		position1 = target1.clone().add(direction.setLength(size));
-		// for(var key in meshes) {
-		// 	if(meshes[key].name === mesh.name) {
-		// 		continue;
-		// 	} else {
-		// 		scene.remove(meshes[key]);
-		// 	}
-		// }
-		controls = null;
-		state = STATE.CHANGE_FOCOUS;
-		start_time = new Date().getTime();
-	}
-}
-
-function on_double_click(event) {
-	mouse.x = ( event.clientX / window.innerWidth ) * 2 - 1;
-	mouse.y = - ( event.clientY / window.innerHeight ) * 2 + 1;
-	
-	raycaster.setFromCamera( mouse, camera );
-	var origin = raycaster.ray.origin;
-	var direction = raycaster.ray.direction;
-	var intersects = raycaster.intersectObjects( scene.children, true);
-	if ( intersects.length > 0 ) {
-		//change_scene(intersects[ 0 ].object.path);
-		//alert(intersects[0].object.name);
-		intersects[0].object.material.color = random_color();
-		change_focous(intersects[0].object);
-	}
-}
-
-function onWindowResize() {
-
-	windowHalfX = window.innerWidth / 2;
-	windowHalfY = window.innerHeight / 2;
-
-	camera.aspect = window.innerWidth / window.innerHeight;
-	camera.updateProjectionMatrix();
-
-	renderer.setSize( window.innerWidth, window.innerHeight );
-
 }
 
 function animate() {
@@ -299,7 +415,21 @@ function render() {
 			
 			state = STATE.NONE;
 			
+			for(var key in current_meshes) {
+				current_meshes[key].material.transparent = true;
+				current_meshes[key].material.opacity = 0;
+			}
+			if(current_meshes[focous_name] !== undefined) {
+				current_meshes[focous_name].material.transparent = false;
+				current_meshes[focous_name].material.opacity = 1;
+			}
+			focous_name = '';
+
 			renderer.render( scene, camera );
+			if(hr_mesh_ready_unchanged.name !== undefined) {
+				change_meshes_and_backup(hr_mesh_ready_unchanged.name);
+				hr_mesh_ready_unchanged = {};
+			}
 		} else {
 			scaler = time / change_focous_duration;
 			var target = target0.clone().multiplyScalar(1 - scaler);
@@ -311,6 +441,15 @@ function render() {
 			
 			dir = position.clone().sub(target).normalize();
 			directionalLight.position.copy(dir);
+
+			for(var key in current_meshes) {
+				current_meshes[key].material.transparent = true;
+				current_meshes[key].material.opacity = 1 - scaler;
+			}
+			if(current_meshes[focous_name] !== undefined) {
+				current_meshes[focous_name].material.transparent = false;
+				current_meshes[focous_name].material.opacity = 1;
+			}
 
 			renderer.render( scene, camera );
 		}

@@ -40,18 +40,19 @@ CTWD.XBJLoader.prototype = {
 		offset += 4;
 		var nb_vertices = data_view.getUint32(offset, is_little);
 		offset += 4;
-		if(nb_double === 8) {
-			for(var i = 0; i < nb_vertices * 3; i++) {
-				vertices.push(data_view.getFloat64(offset + i * 8, is_little));
-			}
-			offset += nb_vertices * 3 * 8;
-		} else if(nb_double == 4) {
+		// if(nb_double === 8) {
+		// 	for(var i = 0; i < nb_vertices * 3; i++) {
+		// 		vertices.push(data_view.getFloat64(offset + i * 8, is_little));
+		// 	}
+		// 	offset += nb_vertices * 3 * 8;
+		// } else 
+		if(nb_double == 4) {
 			for(var i = 0; i < nb_vertices * 3; i++) {
 				vertices.push(data_view.getFloat32(offset + i * 4, is_little));
 			}
 			offset += nb_vertices * 3 * 4;
 		} else {
-			console.log("不可处理的float长度");
+			console.log("不可处理的float长度: ", nb_double);
 		}
 		var nb_faces = data_view.getUint32(offset, is_little);
 		offset+=4;
@@ -90,10 +91,11 @@ CTWD.XBJLoader.prototype = {
 
 		var buffergeometry = new THREE.BufferGeometry();
 
-		if(nb_double === 8) {
-			buffergeometry.addAttribute( 'position', new THREE.BufferAttribute( new Float64Array( geometry.vertices ), 3 ) );
-		} else if(nb_double === 4) {
-			buffergeometry.addAttribute( 'position', new THREE.BufferAttribute( new Float32Array( geometry.vertices ), 3 ) );
+		if(nb_double === 4) {
+			buffergeometry.addAttribute( 'position', 
+				new THREE.BufferAttribute( new Float32Array( geometry.vertices ), 3 ) );
+		} else {
+			console.log("不可处理的float长度: ", nb_double);
 		}
 
 		buffergeometry.computeVertexNormals();
