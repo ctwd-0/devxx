@@ -4,8 +4,6 @@ var camera, controls, scene, renderer;
 
 var directionalLight;
 
-var windowHalfX = window.innerWidth / 2;
-var windowHalfY = window.innerHeight / 2;
 var mouse = new THREE.Vector2();
 
 var raycaster, INTERSECTED;
@@ -87,7 +85,7 @@ function load_xbjs_and_add_to_scene(mesh_to_load) {
 	mesh_to_load.files.forEach(function (file) {
 		var file_loader = new THREE.FileLoader();
 		file_loader.setResponseType('arraybuffer');
-		file_loader.load('model\\' + file, function(binary) {
+		file_loader.load('dist/model/' + file, function(binary) {
 			mesh_to_load[file].forEach(function(component) {
 				var mesh = xbj_loader.load(binary, component.offset);
 				if(component.as_name !== undefined) {
@@ -105,7 +103,7 @@ function load_xbjs_adn_add_to_cache(mesh_to_load, cache, on_loading_finished) {
 	mesh_to_load.files.forEach(function (file) {
 		var file_loader = new THREE.FileLoader();
 		file_loader.setResponseType('arraybuffer');
-		file_loader.load('model\\' + file, function(binary) {
+		file_loader.load('dist/model/' + file, function(binary) {
 			mesh_to_load[file].forEach(function(component) {
 				var mesh = xbj_loader.load(binary, component.offset);
 				if(component.as_name !== undefined) {
@@ -175,10 +173,11 @@ function random_color() {
 
 
 
-var STATE = { NONE: -1, CHANGE_FOCOUS: 1 };
+var STATE = { NONE: -1, CHANGE_FOCOUS: 1, BACK_TO_PARENT: 2};
 var target0, target1, position0, position1;
 var start_time;
 var change_focous_duration = 500;
+var back_to_parent_duration = 500;
 var state = STATE.NONE;
 
 
@@ -200,42 +199,21 @@ var hr_mesh_ready_unchanged = {};
 
 var focous_name = '';
 
+var parent_scene = {};
+
+var waiting_for_mesh = false;
+
+
 function clear_transparency_and_color(meshes) {
 	for(var key in meshes) {
-		meshes[key].material.color = new THREE.Color(1,1,1);
-		meshes[key].material.transparent = false;
+		if(meshes[key].material) {
+			meshes[key].material.color = new THREE.Color(1,1,1);
+			meshes[key].material.transparent = false;
+		}
 	}
 }
 
-function change_meshes_and_backup(name) {
-	if(state == STATE.NONE) {
-		if(current_model === 'g_' + root_groups[0]) {
-			low_resolution_meshes = root_meshes;
-		} else {
-			low_resolution_meshes = current_meshes;
-		}
-		model_stack.push({
-			model_name: current_model,
-			model_meshes: low_resolution_meshes
-		});
-
-		for(var key in low_resolution_meshes) {
-			scene.remove(low_resolution_meshes[key]);
-		}
-		for(var key in high_resolution_meshes) {
-			scene.add(high_resolution_meshes[key]);
-		}
-		current_meshes = high_resolution_meshes;
-		current_model = name;
-		clear_transparency_and_color(low_resolution_meshes);
-	} else {
-		hr_mesh_ready_unchanged = {
-			name:name,
-		};
-	}
-}
-
-function prepare_hr_meshes(name) {
+function prepare_hr_meshes(name, box) {
 	info = name.split('_');
 	if(info.length === 2) {
 		//这已经是最后一层了
@@ -255,10 +233,42 @@ function prepare_hr_meshes(name) {
 		}
 		high_resolution_meshes = {};
 		load_xbjs_adn_add_to_cache(hr_meshes_to_load, high_resolution_meshes, function() {
+			high_resolution_meshes._box = box.clone();
 			change_meshes_and_backup(info[2] + '_' + info[3]);
 		});
 	} else {
 		console.log('error prepare_hr_meshes. name: ', name);
+	}
+}
+
+function change_meshes_and_backup(name) {
+	if(state === STATE.NONE) {
+		if(current_model === 'g_' + root_groups[0]) {
+			low_resolution_meshes = root_meshes;
+		} else {
+			low_resolution_meshes = current_meshes;
+		}
+		model_stack.push({
+			model_name: current_model,
+			model_meshes: low_resolution_meshes,
+		});
+
+		for(var key in low_resolution_meshes) {
+			scene.remove(low_resolution_meshes[key]);
+		}
+		for(var key in high_resolution_meshes) {
+			if(high_resolution_meshes[key] instanceof THREE.Object3D) {
+				scene.add(high_resolution_meshes[key]);
+			}
+		}
+		current_meshes = high_resolution_meshes;
+		current_model = name;
+		waiting_for_mesh = false;
+		clear_transparency_and_color(low_resolution_meshes);
+	} else {
+		hr_mesh_ready_unchanged = {
+			name:name,
+		};
 	}
 }
 
@@ -281,7 +291,36 @@ function change_focous(mesh) {
 		start_time = new Date().getTime();
 		state = STATE.CHANGE_FOCOUS;
 		focous_name = name;
-		prepare_hr_meshes(name);
+		prepare_hr_meshes(name, box);
+		waiting_for_mesh = true;
+	}
+}
+
+function back_to_parent() {
+	if(state === STATE.NONE && waiting_for_mesh === false) {
+		if (model_stack.length) {
+			state = STATE.BACK_TO_PARENT;
+			parent_scene = model_stack.pop();
+			box = parent_scene.model_meshes._box;
+			target1 = box.getCenter();
+			target0 = controls.target.clone();
+			position0 = camera.position.clone();
+			size = box.getSize().length();
+			direction = position0.clone().sub(target0).normalize();
+			position1 = target1.clone().add(direction.setLength(size));
+			controls = null;
+			start_time = new Date().getTime();
+			for(var key in parent_scene.model_meshes) {
+				if(parent_scene.model_meshes[key] instanceof THREE.Object3D) {
+					scene.add(parent_scene.model_meshes[key]);
+					parent_scene.model_meshes[key].material.transparent = true;
+					parent_scene.model_meshes[key].material.opacity = 0;
+				}
+			}
+			state = STATE.BACK_TO_PARENT;
+		}
+	} else {
+		return;
 	}
 }
 
@@ -290,44 +329,49 @@ function force_select(name) {
 }
 
 function on_double_click(event) {
-	mouse.x = ( event.clientX / window.innerWidth ) * 2 - 1;
-	mouse.y = - ( event.clientY / window.innerHeight ) * 2 + 1;
-	
-	raycaster.setFromCamera( mouse, camera );
-	var origin = raycaster.ray.origin;
-	var direction = raycaster.ray.direction;
-	var intersects = raycaster.intersectObjects( scene.children, true);
-	if ( intersects.length > 0 ) {
-		//change_scene(intersects[ 0 ].object.path);
-		//alert(intersects[0].object.name);
-		intersects[0].object.material.color = random_color();
-		change_focous(intersects[0].object);
+	if(state === STATE.NONE && waiting_for_mesh === false) {
+		mouse.x = ( event.offsetX / container.clientWidth ) * 2 - 1;
+		mouse.y = - ( event.offsetY / container.clientHeight ) * 2 + 1;
+		
+		raycaster.setFromCamera( mouse, camera );
+		var origin = raycaster.ray.origin;
+		var direction = raycaster.ray.direction;
+		var intersects = raycaster.intersectObjects( scene.children, true);
+		if ( intersects.length > 0 ) {
+			//change_scene(intersects[ 0 ].object.path);
+			//alert(intersects[0].object.name);
+			intersects[0].object.material.color = random_color();
+			change_focous(intersects[0].object);
+		} else {
+			back_to_parent();
+		}
 	}
 }
 
 function onWindowResize() {
 
-	windowHalfX = window.innerWidth / 2;
-	windowHalfY = window.innerHeight / 2;
+	camera.aspect = container.clientWidth / container.clientHeight;
 
-	camera.aspect = window.innerWidth / window.innerHeight;
 	camera.updateProjectionMatrix();
 
-	renderer.setSize( window.innerWidth, window.innerHeight );
+	renderer.setSize( container.clientWidth , container.clientHeight );
 
 }
 
-function init(box) {
+var container;
 
+function init(box, _container) {
+	root_meshes._box = box.clone();
 	target = box.getCenter();
 	position = target.clone();
 	//position.z += (box.max.z - box.min.z)*2;
 	position.z += box.getSize().length();
-	
-	container = document.createElement( 'div' );
-	document.body.appendChild( container );
 
-	camera = new THREE.PerspectiveCamera( 60, window.innerWidth / window.innerHeight, 1, 100000 );
+	container = _container;
+	//container = document.createElement( 'div' );
+	//document.body.appendChild( container );
+
+	camera = new THREE.PerspectiveCamera( 60, container.clientWidth / container.clientHeight, 1, 100000 );
 	camera.position.copy(position);
 	camera.lookAt(target.clone());
 	
@@ -350,15 +394,15 @@ function init(box) {
 	var loader_lookup = new THREE.FileLoader();
 	var loader_group_info = new THREE.FileLoader();
 	
-	loader_metadata.load('model\\_metadata', function(file) {
+	loader_metadata.load('dist/model/_metadata', function(file) {
 		on_metadata(file);
 	});
 	
-	loader_lookup.load('model\\_lookup', function(file) {
+	loader_lookup.load('dist/model/_lookup', function(file) {
 		on_lookup(file);
 	});
 	
-	loader_group_info.load('model\\_group_info', function(file) {
+	loader_group_info.load('dist/model/_group_info', function(file) {
 		on_group_info(file);
 	});
 	
@@ -368,13 +412,14 @@ function init(box) {
 	
 	renderer = new THREE.WebGLRenderer({antialias:true});
 	renderer.setPixelRatio( window.devicePixelRatio );
-	renderer.setSize( window.innerWidth, window.innerHeight );
+	renderer.setSize( container.clientWidth, container.clientHeight );
 	container.appendChild( renderer.domElement );
 
 	stats = new Stats();
 	container.appendChild( stats.dom );
-	
-	window.addEventListener( 'dblclick', on_double_click );
+	stats.dom.style.position = "absolute"
+
+	container.addEventListener( 'dblclick', on_double_click );
 	
 	window.addEventListener( 'resize', onWindowResize, false );
 }
@@ -416,20 +461,34 @@ function render() {
 			state = STATE.NONE;
 			
 			for(var key in current_meshes) {
-				current_meshes[key].material.transparent = true;
-				current_meshes[key].material.opacity = 0;
+				if(current_meshes[key].material) {
+					current_meshes[key].material.transparent = true;
+					current_meshes[key].material.opacity = 0;
+				}
 			}
 			if(current_meshes[focous_name] !== undefined) {
-				current_meshes[focous_name].material.transparent = false;
-				current_meshes[focous_name].material.opacity = 1;
+				if(current_meshes[focous_name].material) {
+					current_meshes[focous_name].material.transparent = false;
+					current_meshes[focous_name].material.opacity = 1;
+				}
 			}
-			focous_name = '';
 
-			renderer.render( scene, camera );
+
 			if(hr_mesh_ready_unchanged.name !== undefined) {
 				change_meshes_and_backup(hr_mesh_ready_unchanged.name);
 				hr_mesh_ready_unchanged = {};
+				waiting_for_mesh = false;
+			} else {
+				for(var key in low_resolution_meshes) {
+					if(low_resolution_meshes[key] instanceof THREE.Object3D 
+						&& key !== focous_name) {
+						scene.remove(low_resolution_meshes[key]);
+					}
+				}
 			}
+			focous_name = '';
+			renderer.render( scene, camera );
+
 		} else {
 			scaler = time / change_focous_duration;
 			var target = target0.clone().multiplyScalar(1 - scaler);
@@ -443,12 +502,63 @@ function render() {
 			directionalLight.position.copy(dir);
 
 			for(var key in current_meshes) {
-				current_meshes[key].material.transparent = true;
-				current_meshes[key].material.opacity = 1 - scaler;
+				if(current_meshes[key].material) {
+					current_meshes[key].material.transparent = true;
+					current_meshes[key].material.opacity = 1 - scaler;
+				}
 			}
 			if(current_meshes[focous_name] !== undefined) {
-				current_meshes[focous_name].material.transparent = false;
-				current_meshes[focous_name].material.opacity = 1;
+				if(current_meshes[focous_name].material) {
+					current_meshes[focous_name].material.transparent = false;
+					current_meshes[focous_name].material.opacity = 1;
+				}
+			}
+
+			renderer.render( scene, camera );
+		}
+	} else if(state == STATE.BACK_TO_PARENT){
+		time = new Date().getTime() - start_time;
+		if(time > back_to_parent_duration) {
+			camera.position.copy(position1);
+			camera.lookAt(target1);
+
+			controls = new THREE.TrackballControls( camera );
+			controls.staticMoving = true;
+			controls.target = target1.clone(); 
+			controls.update();
+
+			dir = position1.clone().sub(target1).normalize();
+			directionalLight.position.copy(dir);
+			
+			state = STATE.NONE;
+			
+			for(var key in current_meshes) {
+				scene.remove(current_meshes[key]);
+			}
+
+			current_model = parent_scene.model_name;
+			current_meshes = parent_scene.model_meshes;
+			parent_scene = {};
+			clear_transparency_and_color(current_meshes);
+
+			renderer.render( scene, camera );
+		} else {
+			scaler = time / change_focous_duration;
+			var target = target0.clone().multiplyScalar(1 - scaler);
+			target.add(target1.clone().multiplyScalar(scaler));
+			var position = position0.clone().multiplyScalar(1 - scaler);
+			position.add(position1.clone().multiplyScalar(scaler));
+			camera.position.copy(position);
+			camera.lookAt(target);
+			
+			dir = position.clone().sub(target).normalize();
+			directionalLight.position.copy(dir);
+
+			for(var key in parent_scene.model_meshes) {
+				if(parent_scene.model_meshes[key].material) {
+					parent_scene.model_meshes[key].material.transparent = true;
+					parent_scene.model_meshes[key].material.opacity = scaler;
+				}
 			}
 
 			renderer.render( scene, camera );
