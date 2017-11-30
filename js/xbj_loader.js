@@ -1,4 +1,4 @@
-var CTWD = {};
+var CTWD = CTWD||{};
 
 CTWD.XBJLoader = function() {
 

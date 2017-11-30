@@ -1,6 +1,6 @@
 var container,stats;
 
-var camera, controls, scene, renderer;
+var camera, controls, scene, renderer, tracker;
 
 var directionalLight;
 
@@ -173,11 +173,16 @@ function random_color() {
 
 
 
-var STATE = { NONE: -1, CHANGE_FOCOUS: 1, BACK_TO_PARENT: 2};
-var target0, target1, position0, position1;
+var STATE = { 
+	NONE: -1, 
+	CHANGE_FOCOUS: 1,
+	BACK_TO_PARENT: 2,
+	ROTATE_TO_DIR: 3};
+var target0, target1, position0, position1, up0, up1;
 var start_time;
 var change_focous_duration = 500;
 var back_to_parent_duration = 500;
+var rotate_to_dir_duration = 500;
 var state = STATE.NONE;
 
 
@@ -270,6 +275,21 @@ function change_meshes_and_backup(name) {
 			name:name,
 		};
 	}
+}
+
+function rotate_to_certain_dir(dir) {
+	box = current_meshes._box;
+	target1 = box.getCenter();
+	target0 = controls.target.clone();
+	position0 = camera.position.clone();
+	size = box.getSize().length();
+	direction = dir.clone();
+	position1 = target1.clone().add(direction.setLength(size));
+	up0 = camera.up.clone();
+	up1 = new THREE.Vector3(0,1,0);
+	controls = null;
+	start_time = new Date().getTime();
+	state = STATE.ROTATE_TO_DIR; 
 }
 
 function change_focous(mesh) {
@@ -375,7 +395,7 @@ function init(box, _container) {
 	camera.position.copy(position);
 	camera.lookAt(target.clone());
 	
-	controls = new THREE.TrackballControls( camera );
+	controls = new THREE.TrackballControls( camera, container);
 	controls.staticMoving = true;
 	controls.target = target.clone();
 	controls.update();
@@ -416,9 +436,21 @@ function init(box, _container) {
 	container.appendChild( renderer.domElement );
 
 	stats = new Stats();
+	stats.dom.style.position = "absolute";
 	container.appendChild( stats.dom );
-	stats.dom.style.position = "absolute"
 
+	t_div = document.createElement('div');
+	t_div.style.position = "absolute";
+	t_div.style.right = 0;
+	t_div.style.top = 0;
+	t_div.style.width = '150px';
+	t_div.style.height = '150px';
+	//t_div.style.border = '1px solid white';
+	container.appendChild(t_div);
+
+	tracker = new CTWD.Tracker();
+	tracker.init(t_div);
+	
 	container.addEventListener( 'dblclick', on_double_click );
 	
 	window.addEventListener( 'resize', onWindowResize, false );
@@ -429,7 +461,9 @@ function animate() {
 	requestAnimationFrame( animate );
 	
 	render();
-	
+
+	tracker.render();
+
 	stats.update();
 }
 
@@ -448,9 +482,10 @@ function render() {
 		time = new Date().getTime() - start_time;
 		if(time > change_focous_duration) {
 			camera.position.copy(position1);
+			camera.up.copy(new THREE.Vector3(0,1,0));
 			camera.lookAt(target1);
 
-			controls = new THREE.TrackballControls( camera );
+			controls = new THREE.TrackballControls( camera, container );
 			controls.staticMoving = true;
 			controls.target = target1.clone(); 
 			controls.update();
@@ -522,7 +557,7 @@ function render() {
 			camera.position.copy(position1);
 			camera.lookAt(target1);
 
-			controls = new THREE.TrackballControls( camera );
+			controls = new THREE.TrackballControls( camera, container );
 			controls.staticMoving = true;
 			controls.target = target1.clone(); 
 			controls.update();
@@ -560,6 +595,40 @@ function render() {
 					parent_scene.model_meshes[key].material.opacity = scaler;
 				}
 			}
+
+			renderer.render( scene, camera );
+		}
+	} else if(state == STATE.ROTATE_TO_DIR){
+		time = new Date().getTime() - start_time;
+		if(time > rotate_to_dir_duration) {
+			camera.position.copy(position1);
+			camera.up.copy(up1);
+			camera.lookAt(target1);
+
+			controls = new THREE.TrackballControls( camera, container );
+			controls.staticMoving = true;
+			controls.target = target1.clone(); 
+			controls.update();
+
+			dir = position1.clone().sub(target1).normalize();
+			directionalLight.position.copy(dir);
+			
+			state = STATE.NONE;
+			renderer.render( scene, camera );
+		} else {
+			scaler = time / change_focous_duration;
+			var target = target0.clone().multiplyScalar(1 - scaler);
+			target.add(target1.clone().multiplyScalar(scaler));
+			var position = position0.clone().multiplyScalar(1 - scaler);
+			position.add(position1.clone().multiplyScalar(scaler));
+			var up = up0.clone().multiplyScalar(1 - scaler);
+			up.add(up1.clone().multiplyScalar(scaler));
+			camera.position.copy(position);
+			camera.up.copy(up);
+			camera.lookAt(target);
+			
+			dir = position.clone().sub(target).normalize();
+			directionalLight.position.copy(dir);
 
 			renderer.render( scene, camera );
 		}
