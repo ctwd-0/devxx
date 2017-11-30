@@ -482,7 +482,6 @@ function render() {
 		time = new Date().getTime() - start_time;
 		if(time > change_focous_duration) {
 			camera.position.copy(position1);
-			camera.up.copy(new THREE.Vector3(0,1,0));
 			camera.lookAt(target1);
 
 			controls = new THREE.TrackballControls( camera, container );
