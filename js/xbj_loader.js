@@ -82,6 +82,11 @@ CTWD.XBJLoader.prototype = {
 			console.log("不可处理的int长度");
 		}
 
+		for(var i = 0; i < nb_vertices; i++) {
+			temp = vertices[i*3+1];
+			vertices[i*3+1] = vertices[i*3+2];
+			vertices[i*3+2] = temp;
+		}
 		for(var i = 0; i < faces.length; i++) {
 			var index = faces[i] - 1;
 			geometry.vertices.push(vertices[index * 3 + 0]);
@@ -98,10 +103,11 @@ CTWD.XBJLoader.prototype = {
 			console.log("不可处理的float长度: ", nb_double);
 		}
 
+
 		buffergeometry.computeVertexNormals();
 		buffergeometry.name = geometry.name;
 
-		material = new THREE.MeshPhongMaterial();
+		material = new THREE.MeshStandardMaterial();
 		material.shading = THREE.SmoothShading;
 		material.side = THREE.DoubleSide;
 		

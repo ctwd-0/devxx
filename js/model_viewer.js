@@ -11,6 +11,7 @@ var raycaster, INTERSECTED;
 var metadata = {};
 var lookup = {};
 var group_info = {};
+var names = {};
 var group_count, root_groups = [];
 var meta_ready_count = 0;
 
@@ -67,9 +68,21 @@ function on_group_info(file_group_info) {
 	on_meta_index_group_ready();
 }
 
+function on_names(file_names) {
+	var lines = file_names.split('\n');
+	lines.forEach(function(line) {
+		pts = line.split(' ');
+		names[pts[0]]= {
+			uuid: pts[1],
+			name: pts[2],
+		};
+	});
+	on_meta_index_group_ready();
+}
+
 function on_meta_index_group_ready() {
 	meta_ready_count++;
-	if(meta_ready_count == 3) {
+	if(meta_ready_count == 4) {
 		//alert('meta_ready!');
 		load_root_groups();
 		current_model = 'g_' + root_groups[0];
@@ -77,8 +90,26 @@ function on_meta_index_group_ready() {
 }
 
 function load_root_groups() {
-	var mesh_to_load = make_up_load_list(root_groups);
+	var mesh_to_load = {files:[]};
+	make_up_load_list(root_groups, mesh_to_load);
 	load_xbjs_and_add_to_scene(mesh_to_load);
+}
+
+function check_sub_group(group_id, obj_id) {
+	var g_info = group_info[group_id];
+	if(g_info.objects.indexOf(obj_id) != -1) {
+		//包含，但并没有sub_group;
+		return -1;
+	} else {
+		for(var i = 0; i < g_info.groups.length; i++) {
+			sub_group = g_info.groups[i];
+			sub_contain = check_sub_group(sub_group, obj_id);
+			if(sub_contain !== -2) {
+				return sub_group;
+			}
+		}
+	}
+	return -2;
 }
 
 function load_xbjs_and_add_to_scene(mesh_to_load) {
@@ -91,8 +122,37 @@ function load_xbjs_and_add_to_scene(mesh_to_load) {
 				if(component.as_name !== undefined) {
 					mesh.name = component.as_name;
 				}
-				root_meshes[mesh.name] = mesh;
-				scene.add( mesh );
+				obj_ids = mesh.name.split('_');
+				obj_id = obj_ids[3];
+				group_id = obj_ids[1];
+				sub_group = check_sub_group(group_id, obj_id);
+				//console.log(sub_group);
+				if(sub_group !== -1 && sub_group !== -2) {
+					sub_group_name = 'g_' + group_id + '_g_' + sub_group;
+					if(root_meshes[sub_group_name] === undefined) {
+						root_meshes[sub_group_name] = new THREE.Group();
+						root_meshes[sub_group_name].name = sub_group_name;
+						root_meshes[sub_group_name].material = mesh.material;
+					}
+					root_meshes[sub_group_name].add(mesh);
+					mesh.material = root_meshes[sub_group_name].material;
+					scene.add(root_meshes[sub_group_name]);
+				} else {
+					root_meshes[mesh.name] = mesh;
+					scene.add( mesh );
+				}
+				if(names[obj_id].name === '') {
+					var box = new THREE.Box3();
+					box.setFromObject(mesh);
+					var size = box.getSize();
+					ct = 0;
+					if(size.x < 40) ct++;
+					if(size.y < 40) ct++;
+					if(size.z < 40) ct++;
+					if(ct >= 2) {
+						mesh.visible = false;
+					}
+				}
 			});
 		});
 	});
@@ -146,15 +206,16 @@ function check_objects_files(objects) {
 	return mesh_to_load;
 }
 
-function make_up_load_list(groups) {
-	var mesh_to_load = {files:[]};
+function make_up_load_list(groups, mesh_to_load, as_group) {
 	groups.forEach(function(group) {
-		group_info[group].groups.forEach(function(sub_group) {
-			component_name = 'g_' + group + '_g_' + sub_group;
-			check_lookup(component_name, mesh_to_load);
-		});
+		if(group_info[group].groups.length != 0) {
+			make_up_load_list(group_info[group].groups, mesh_to_load, group);
+		}
 		group_info[group].objects.forEach(function(object) {
 			component_name = 'g_' + group + '_o_' + object;
+			if(as_group !== undefined) {
+				component_name = 'g_' + as_group + '_o_' + object;
+			}
 			if(lookup[component_name] === undefined) {
 				as_name = component_name;
 				component_name = 'o_' + object;
@@ -164,14 +225,11 @@ function make_up_load_list(groups) {
 			}
 		});
 	});
-	return mesh_to_load;
 }
 
 function random_color() {
 	return new THREE.Color(Math.random(), Math.random(), Math.random());
 }
-
-
 
 var STATE = { 
 	NONE: -1, 
@@ -227,7 +285,8 @@ function prepare_hr_meshes(name, box) {
 		group = parseInt(info[1], 10);
 		next = parseInt(info[3], 10);
 		if(info[2] === 'g') {
-			hr_meshes_to_load = make_up_load_list([info[3]]);
+			hr_meshes_to_load = {files:[]};
+			make_up_load_list([info[3]], hr_meshes_to_load);
 		} else if(info[2] === 'o'){
 			name_hr_meshes = [];
 			name_hr_meshes.push('o' + next);
@@ -360,8 +419,12 @@ function on_double_click(event) {
 		if ( intersects.length > 0 ) {
 			//change_scene(intersects[ 0 ].object.path);
 			//alert(intersects[0].object.name);
-			intersects[0].object.material.color = random_color();
-			change_focous(intersects[0].object);
+			var object = intersects[0].object;
+			if(object.parent instanceof THREE.Group) {
+				object = object.parent;
+			}
+			//object.material.color = random_color();
+			change_focous(object);
 		} else {
 			back_to_parent();
 		}
@@ -402,8 +465,7 @@ function init(box, _container) {
 	// scene
 
 	scene = new THREE.Scene();
-
-	var ambient = new THREE.AmbientLight( 0x202020 );
+	var ambient = new THREE.AmbientLight( 0x808080 );
 	scene.add( ambient );
 
 	directionalLight = new THREE.DirectionalLight( 0xffffff );
@@ -424,6 +486,10 @@ function init(box, _container) {
 	
 	loader_group_info.load('dist/model/_group_info', function(file) {
 		on_group_info(file);
+	});
+
+	loader_group_info.load('dist/model/_names', function(file) {
+		on_names(file);
 	});
 	
 	current_meshes = root_meshes;
@@ -476,6 +542,7 @@ function render() {
 
 		directionalLight.position.copy(dir);
 
+		//console.log(scene.children.length);
 		renderer.render( scene, camera );
 
 	} else if(state == STATE.CHANGE_FOCOUS) {

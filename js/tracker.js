@@ -41,11 +41,15 @@ CTWD.Tracker = function(domElement) {
 		f_box = new THREE.BoxGeometry(f_b, f_a, f_b);
 		g_box = f_box.clone();
 		g_box.translate(0, off_f, 0);
-		result.push(new THREE.Mesh(g_box, this.face_material.clone()));
+		m = new THREE.Mesh(g_box, this.face_material.clone());
+		//m.name = "skip";
+		result.push(m);
 		g_box = f_box.clone();
 		g_box.translate(0, -off_f, 0);
-		result.push(new THREE.Mesh(g_box, this.face_material.clone()));
-		
+		m = new THREE.Mesh(g_box, this.face_material.clone());
+		//m.name = "skip";
+		result.push(m);
+
 		f_box = new THREE.BoxGeometry(f_b, f_b, f_a);
 		g_box = f_box.clone();
 		g_box.translate(0, 0, off_f);
@@ -161,9 +165,11 @@ CTWD.Tracker = function(domElement) {
 			tracker.raycaster.setFromCamera( mouse, tracker.camera );
 			var intersects = tracker.raycaster.intersectObjects( tracker.scene.children, true);
 			if ( intersects.length > 0 ) {
-				intersects[0].object.material.opacity = 1.0;
-				rotate_to_certain_dir(
-					intersects[0].object.geometry.boundingSphere.center.clone().normalize());
+				//intersects[0].object.material.opacity = 1.0;
+				if(intersects[0].object.name == "skip") {
+					return ;
+				}
+				rotate_to_certain_dir(intersects[0].object.geometry.boundingSphere.center.clone().normalize());
 			}
 		}
 	};
