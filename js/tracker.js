@@ -146,7 +146,11 @@ CTWD.Tracker = function(domElement) {
 		this.directionalLight.position.set( 0, 0, 1 );
 		this.scene.add( this.directionalLight );
 
-		this.renderer = new THREE.WebGLRenderer({antialias:true});
+		this.renderer = new THREE.WebGLRenderer({
+			antialias:true,
+			alpha:true,
+		});
+		this.renderer.setClearColor( 0x000000, 0 ); 
 		this.renderer.setPixelRatio( window.devicePixelRatio );
 		this.renderer.setSize( this.container.clientWidth, this.container.clientHeight );
 		this.container .appendChild( this.renderer.domElement );
