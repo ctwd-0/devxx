@@ -103,12 +103,11 @@ CTWD.XBJLoader.prototype = {
 			console.log("不可处理的float长度: ", nb_double);
 		}
 
-
 		buffergeometry.computeVertexNormals();
 		buffergeometry.name = geometry.name;
 
 		material = new THREE.MeshStandardMaterial();
-		material.shading = THREE.SmoothShading;
+		material.flatShading  = true;
 		material.side = THREE.DoubleSide;
 		
 		mesh = new THREE.Mesh(buffergeometry, material);
