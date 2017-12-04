@@ -20,6 +20,8 @@ var xbj_loader = new CTWD.XBJLoader();
 
 var _viewer;
 
+var _scaler = 0.6;
+
 function on_metadata(file_metadata) {
 	var lines = file_metadata.split('\n');
 	lines.forEach(function(line) {
@@ -497,7 +499,7 @@ function rotate_to_certain_dir(dir) {
 	target1 = box.getCenter();
 	target0 = controls.target.clone();
 	position0 = camera.position.clone();
-	size = box.getSize().length();
+	size = box.getSize().length() * _scaler;
 	direction = dir.clone();
 	position1 = target1.clone().add(direction.setLength(size));
 	up0 = camera.up.clone();
@@ -520,7 +522,7 @@ function change_focous(mesh) {
 		target1 = box.getCenter();
 		target0 = controls.target.clone();
 		position0 = camera.position.clone();
-		size = box.getSize().length();
+		size = box.getSize().length() * _scaler;
 		direction = position0.clone().sub(target0).normalize();
 		position1 = target1.clone().add(direction.setLength(size));
 		controls = null;
@@ -547,7 +549,7 @@ function direct_to_object(sub_group, object) {
 	target1 = box.getCenter();
 	target0 = controls.target.clone();
 	position0 = camera.position.clone();
-	size = box.getSize().length();
+	size = box.getSize().length() * _scaler;
 	direction = position0.clone().sub(target0).normalize();
 	position1 = target1.clone().add(direction.setLength(size));
 	controls = null;
@@ -566,7 +568,7 @@ function back_to_parent() {
 			target1 = box.getCenter();
 			target0 = controls.target.clone();
 			position0 = camera.position.clone();
-			size = box.getSize().length();
+			size = box.getSize().length() * _scaler;
 			direction = position0.clone().sub(target0).normalize();
 			position1 = target1.clone().add(direction.setLength(size));
 			controls = null;
@@ -626,7 +628,7 @@ function init(box, _container) {
 	target = box.getCenter();
 	position = target.clone();
 	//position.z += (box.max.z - box.min.z)*2;
-	position.z += box.getSize().length();
+	position.z += box.getSize().length() * _scaler;
 
 	container = _container;
 	//container = document.createElement( 'div' );
@@ -758,9 +760,8 @@ function render_change_focous() {
 				current_meshes[key].material.opacity = 0;
 			}
 		}
-
 		if(current_meshes[focous_name] !== undefined) {
-			if(current_meshes[key] instanceof THREE.Object3D) {
+			if(current_meshes[focous_name] instanceof THREE.Object3D) {
 				current_meshes[focous_name].material.transparent = false;
 				current_meshes[focous_name].material.opacity = 1;
 			}
@@ -808,7 +809,7 @@ function render_change_focous() {
 			}
 		}
 		if(current_meshes[focous_name] !== undefined) {
-			if(current_meshes[key] instanceof THREE.Object3D) {
+			if(current_meshes[focous_name] instanceof THREE.Object3D) {
 				current_meshes[focous_name].material.transparent = false;
 				current_meshes[focous_name].material.opacity = 1;
 			}
