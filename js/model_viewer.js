@@ -18,6 +18,8 @@ var meta_ready_count = 0;
 
 var xbj_loader = new CTWD.XBJLoader();
 
+var _viewer;
+
 function on_metadata(file_metadata) {
 	var lines = file_metadata.split('\n');
 	lines.forEach(function(line) {
@@ -138,6 +140,9 @@ function triger_clear_filter_data() {
 	}
 	
 	filter_data = null;
+	if(_viewer) {
+		_viewer.fe.show = false;
+	}
 }
 
 function triger_filter_objects_fill_data(data) {
@@ -368,6 +373,12 @@ function random_color() {
 	return new THREE.Color(Math.random(), Math.random(), Math.random());
 }
 
+function color_toc_ss_string(color) {
+	return 'rgb('
+		+Math.round(color.r*255)+','
+		+Math.round(color.g*255)+','
+		+Math.round(color.b*255)+')';
+}
 var STATE = { 
 	NONE: -1, 
 	CHANGE_FOCOUS: 1,
