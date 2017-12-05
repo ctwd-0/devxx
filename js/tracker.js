@@ -1,7 +1,7 @@
 var CTWD = CTWD||{};
 
-CTWD.Tracker = function(domElement) {
-	this._this = this;
+CTWD.Tracker = function() {
+	var _this = this;
 	this.size = 1.0;
 	this.thick = 0.4;
 	this.gap = 0.04;
@@ -10,7 +10,7 @@ CTWD.Tracker = function(domElement) {
 	this.scene = {};
 	this.renderer = {};
 	this.raycaster = {}; 
-	this.defualt_material = new THREE.MeshPhongMaterial();
+	this.defualt_material = new THREE.MeshStandardMaterial();
 	this.defualt_material.flatShading = true;
 	this.defualt_material.side = THREE.DoubleSide;
 	this.defualt_material.transparent = true;
@@ -131,6 +131,15 @@ CTWD.Tracker = function(domElement) {
 		this.camera.position.copy(new THREE.Vector3(0,0,4));
 		this.camera.lookAt(new THREE.Vector3(0,0,0));
 
+		this.renderer = new THREE.WebGLRenderer({
+			antialias:true,
+			alpha:true,
+		});
+		this.renderer.setClearColor( 0x000000, 0 ); 
+		this.renderer.setPixelRatio( window.devicePixelRatio );
+		this.renderer.setSize( this.container.clientWidth, this.container.clientHeight );
+		this.container .appendChild( this.renderer.domElement );
+
 		this.controls = new THREE.TrackballControls( this.camera, this.container, this.renderer);
 		this.controls.noZoom = true;
 		this.controls.noPan = true;
@@ -146,28 +155,22 @@ CTWD.Tracker = function(domElement) {
 		this.directionalLight.position.set( 0, 0, 1 );
 		this.scene.add( this.directionalLight );
 
-		this.renderer = new THREE.WebGLRenderer({
-			antialias:true,
-			alpha:true,
-		});
-		this.renderer.setClearColor( 0x000000, 0 ); 
-		this.renderer.setPixelRatio( window.devicePixelRatio );
-		this.renderer.setSize( this.container.clientWidth, this.container.clientHeight );
-		this.container .appendChild( this.renderer.domElement );
-		this.renderer.need_update = true;
+
 		this.raycaster = new THREE.Raycaster();
 		
 		this.container.addEventListener('mousemove', this.on_move);
-		this.container.addEventListener('dblclick', this.on_click);
+		this.container.addEventListener('click', this.on_click);
+
+		this.renderer.need_update = true;
 	};
 
 	this.on_click = function() {
 		if(state === STATE.NONE && waiting_for_mesh === false) {
-			mouse.x = ( event.offsetX / tracker.container.clientWidth ) * 2 - 1;
-			mouse.y = - ( event.offsetY / tracker.container.clientHeight ) * 2 + 1;
+			mouse.x = ( event.offsetX / _this.container.clientWidth ) * 2 - 1;
+			mouse.y = - ( event.offsetY / _this.container.clientHeight ) * 2 + 1;
 			
-			tracker.raycaster.setFromCamera( mouse, tracker.camera );
-			var intersects = tracker.raycaster.intersectObjects( tracker.scene.children, true);
+			_this.raycaster.setFromCamera( mouse, _this.camera );
+			var intersects = _this.raycaster.intersectObjects( _this.scene.children, true);
 			if ( intersects.length > 0 ) {
 				//intersects[0].object.material.opacity = 1.0;
 				if(intersects[0].object.name == "skip") {
@@ -185,22 +188,25 @@ CTWD.Tracker = function(domElement) {
 		this.directionalLight.position.copy(dir);
 
 		this.renderer.render(this.scene, this.camera);
+
+		this.renderer.need_update = false;
 	};
 
 	this.on_move = function(event) {
 		if(state === STATE.NONE && waiting_for_mesh === false) {
-			mouse.x = ( event.offsetX / tracker.container.clientWidth ) * 2 - 1;
-			mouse.y = - ( event.offsetY / tracker.container.clientHeight ) * 2 + 1;
+			mouse.x = ( event.offsetX / _this.container.clientWidth ) * 2 - 1;
+			mouse.y = - ( event.offsetY / _this.container.clientHeight ) * 2 + 1;
 			
-			tracker.raycaster.setFromCamera( mouse, tracker.camera );
-			var intersects = tracker.raycaster.intersectObjects( tracker.scene.children, true);
+			_this.raycaster.setFromCamera( mouse, _this.camera );
+			var intersects = _this.raycaster.intersectObjects( _this.scene.children, true);
 			if ( intersects.length > 0 ) {
 				for(var i in scene.children) {
-					if(tracker.scene.children[i] instanceof THREE.Mesh) {
-						tracker.scene.children[i].material.opacity = 0.5;
+					if(_this.scene.children[i] instanceof THREE.Mesh) {
+						_this.scene.children[i].material.opacity = 0.5;
 					}
 				}
 				intersects[0].object.material.opacity = 1.0;
+				_this.renderer.need_update = true;
 			}
 		}
 	};

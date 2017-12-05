@@ -1,6 +1,6 @@
-var container,stats;
+var container, stats;
 
-var camera, controls, scene, renderer, tracker;
+var camera, controls, scene, renderer, tracker, hinter;
 
 var directionalLight;
 
@@ -21,6 +21,10 @@ var xbj_loader = new CTWD.XBJLoader();
 var _viewer;
 
 var _scaler = 0.6;
+
+var boxes = {};
+var box_count = 0;
+var box_left = 0;
 
 function on_metadata(file_metadata) {
 	var lines = file_metadata.split('\n');
@@ -237,6 +241,13 @@ function on_meta_index_group_ready() {
 function load_root_groups() {
 	var mesh_to_load = {files:[]};
 	make_up_load_list(root_groups, mesh_to_load);
+	for(var key in mesh_to_load) {
+		if(key === 'files') {
+			continue;
+		}
+		box_count += mesh_to_load[key].length;
+	}
+	box_left = box_count;
 	load_xbjs_and_add_to_scene(mesh_to_load);
 }
 
@@ -290,10 +301,28 @@ function load_xbjs_and_add_to_scene(mesh_to_load) {
 					scene.add( mesh );
 					renderer.need_update = true;
 				}
+				box_left--;
+				var box = new THREE.Box3();
+				box.setFromObject(mesh);
+				var size = box.getSize();
+				var center = box.getCenter();
+				var box_geo = new THREE.BoxGeometry(size.x, size.y, size.z);
+				box_geo.translate(center.x,center.y,center.z);
+				boxes[obj_id] = box_geo;
+				if(box_left == 0) {
+					h_div = document.createElement('div');
+					h_div.style.position = "absolute";
+					h_div.style.right = 0;
+					h_div.style.bottom = 0;
+					h_div.style.width = '200px';
+					h_div.style.height = '200px';
+					//t_div.style.border = '1px solid white';
+					container.appendChild(h_div);
+
+					hinter = new CTWD.Hinter(boxes);
+					hinter.init(h_div);
+				}
 				if(names[obj_id].name === '') {
-					var box = new THREE.Box3();
-					box.setFromObject(mesh);
-					var size = box.getSize();
 					ct = 0;
 					if(size.x < 40) ct++;
 					if(size.y < 40) ct++;
@@ -386,6 +415,7 @@ function color_toc_ss_string(color) {
 		+Math.round(color.g*255)+','
 		+Math.round(color.b*255)+')';
 }
+
 var STATE = { 
 	NONE: -1, 
 	CHANGE_FOCOUS: 1,
@@ -493,6 +523,9 @@ function change_meshes_and_backup(name) {
 		waiting_for_mesh = false;
 		clear_transparency_and_color(low_resolution_meshes);
 		renderer.need_update = true;
+		if(hinter) {
+			hinter.renderer.need_update = true;
+		}
 	} else {
 		hr_mesh_ready_unchanged = {
 			name:name,
@@ -723,12 +756,24 @@ function animate() {
 		controls.update();
 	}
 
+	if(tracker.controls) {
+		tracker.controls.update();
+	}
+
+	if(hinter && hinter.controls) {
+		hinter.controls.update();
+	}
+
 	if(renderer.need_update){
 		render();
 	}
 
 	if(tracker.renderer.need_update) {
 		tracker.render();
+	}
+
+	if(hinter && hinter.renderer.need_update) {
+		hinter.render();
 	}
 
 	stats.update();
@@ -803,6 +848,9 @@ function render_change_focous() {
 		renderer.render( scene, camera );
 
 		renderer.need_update = false;
+		if(hinter) {
+			hinter.renderer.need_update = true;
+		}
 	} else {
 		scaler = time / change_focous_duration;
 		var target = target0.clone().multiplyScalar(1 - scaler);
@@ -867,6 +915,9 @@ function render_back_to_parent() {
 
 		renderer.render( scene, camera );
 		renderer.need_update = false;
+		if(hinter) {
+			hinter.renderer.need_update = true;
+		}
 	} else {
 		scaler = time / change_focous_duration;
 		var target = target0.clone().multiplyScalar(1 - scaler);
@@ -962,6 +1013,9 @@ function render_direct_to_object() {
 		renderer.render( scene, camera );
 
 		renderer.need_update = false;
+		if(hinter) {
+			hinter.renderer.need_update = true;
+		}
 	} else {
 		scaler = time / change_focous_duration;
 		var target = target0.clone().multiplyScalar(1 - scaler);
