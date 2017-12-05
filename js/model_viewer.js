@@ -26,6 +26,19 @@ var boxes = {};
 var box_count = 0;
 var box_left = 0;
 
+var selected_color = new THREE.Color(1,0,0);
+var selected_mesh = null;
+
+function cancel_select() {
+	if(selected_mesh !== null) {
+		if(selected_mesh instanceof THREE.Group) {
+			selected_mesh.material.copy(selected_mesh.bak_material);
+		} else if(selected_mesh instanceof THREE.Mesh) {
+			selected_mesh.material = selected_mesh.bak_material;
+		}
+	}
+}
+
 function on_metadata(file_metadata) {
 	var lines = file_metadata.split('\n');
 	lines.forEach(function(line) {
@@ -107,6 +120,7 @@ function lookup_object_id(name) {
 }
 
 function triger_direct_to_object(id) {
+	cancel_select();
 	var object_name = 'g_-1_o_' + id;
 	sub_group_id = check_sub_group('-1', id);
 	if(sub_group_id === -1 || sub_group_id === -2) {
@@ -128,6 +142,7 @@ function triger_direct_to_object(id) {
 var filter_data = null;
 
 function triger_clear_filter_data() {
+	cancel_select();
 	if(filter_data === null) {
 		return;
 	}
@@ -209,6 +224,7 @@ function triger_filter_objects_set_meshes(data) {
 }
 
 function triger_filter_objects(data) {
+	cancel_select();
 	if(filter_data !== null) {
 		triger_clear_filter_data();
 	}
@@ -494,6 +510,7 @@ function prepare_hr_meshes(name, box) {
 }
 
 function change_meshes_and_backup(name) {
+	cancel_select();
 	if(state === STATE.NONE) {
 		if(current_model === 'g_-1') {
 			low_resolution_meshes = root_meshes;
@@ -550,6 +567,7 @@ function rotate_to_certain_dir(dir) {
 }
 
 function change_focous(mesh) {
+	cancel_select();
 	triger_clear_filter_data();
 	name = mesh.name;
 	info = name.split('_');
@@ -578,6 +596,7 @@ function change_focous(mesh) {
 var direct_object = null;
 
 function direct_to_object(sub_group, object) {
+	cancel_select();
 	direct_object = object;
 	name = object.name;
 	object.bak_material = object.material;
@@ -602,6 +621,7 @@ function direct_to_object(sub_group, object) {
 }
 
 function back_to_parent() {
+	cancel_select();
 	if(state === STATE.NONE && waiting_for_mesh === false) {
 		if (model_stack.length) {
 			state = STATE.BACK_TO_PARENT;
@@ -650,6 +670,35 @@ function on_double_click(event) {
 			change_focous(object);
 		} else {
 			back_to_parent();
+		}
+	}
+}
+
+function on_click(event) {
+	cancel_select();
+	if(state === STATE.NONE && waiting_for_mesh === false) {
+		mouse.x = ( event.offsetX / container.clientWidth ) * 2 - 1;
+		mouse.y = - ( event.offsetY / container.clientHeight ) * 2 + 1;
+		
+		raycaster.setFromCamera( mouse, camera );
+		var origin = raycaster.ray.origin;
+		var direction = raycaster.ray.direction;
+		var intersects = raycaster.intersectObjects( scene.children, true);
+		if ( intersects.length > 0 ) {
+			var object = intersects[0].object;
+			if(object.parent instanceof THREE.Group) {
+				object = object.parent;
+				object.bak_material = object.material.clone();
+				object.material.color = selected_color;
+				selected_mesh = object;
+				renderer.need_update = true;
+			} else if(object instanceof THREE.Mesh) {
+				object.bak_material = object.material;
+				object.material = object.bak_material.clone();
+				object.material.color = selected_color;
+				selected_mesh = object;
+				renderer.need_update = true;
+			}
 		}
 	}
 }
@@ -724,8 +773,6 @@ function init(box, _container) {
 
 	raycaster = new THREE.Raycaster();
 	
-
-
 	container.appendChild( renderer.domElement );
 	stats = new Stats();
 	stats.dom.style.position = "absolute";
@@ -744,6 +791,7 @@ function init(box, _container) {
 	tracker.init(t_div);
 	
 	container.addEventListener( 'dblclick', on_double_click );
+	//container.addEventListener( 'click', on_click );
 	
 	window.addEventListener( 'resize', onWindowResize, false );
 }
