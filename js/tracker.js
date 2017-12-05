@@ -159,7 +159,7 @@ CTWD.Tracker = function() {
 		this.raycaster = new THREE.Raycaster();
 		
 		this.container.addEventListener('mousemove', this.on_move);
-		this.container.addEventListener('click', this.on_click);
+		this.container.addEventListener('dblclick', this.on_click);
 
 		this.renderer.need_update = true;
 	};
