@@ -5,17 +5,19 @@
  * @author Luca Antiga 	/ http://lantiga.github.io
  */
 
-THREE.TrackballControls = function ( object, domElement ) {
+THREE.TrackballControls = function ( object, domElement, _renderer) {
 
 	var _this = this;
 	var STATE = { NONE: - 1, ROTATE: 0, ZOOM: 1, PAN: 2, TOUCH_ROTATE: 3, TOUCH_ZOOM_PAN: 4 };
 
 	this.object = object;
+	this.renderer = _renderer;
 	this.domElement = ( domElement !== undefined ) ? domElement : document;
 
 	// API
 
 	this.enabled = true;
+	this.need_update = true;
 
 	this.screen = { left: 0, top: 0, width: 0, height: 0 };
 
@@ -107,7 +109,7 @@ THREE.TrackballControls = function ( object, domElement ) {
 			this[ event.type ]( event );
 
 		}
-
+		this.need_update = true;
 	};
 
 	var getMouseOnScreen = ( function () {
@@ -179,7 +181,6 @@ THREE.TrackballControls = function ( object, domElement ) {
 
 				_eye.applyQuaternion( quaternion );
 				_this.object.up.applyQuaternion( quaternion );
-
 				_lastAxis.copy( axis );
 				_lastAngle = angle;
 
@@ -190,7 +191,6 @@ THREE.TrackballControls = function ( object, domElement ) {
 				quaternion.setFromAxisAngle( _lastAxis, _lastAngle );
 				_eye.applyQuaternion( quaternion );
 				_this.object.up.applyQuaternion( quaternion );
-
 			}
 
 			_movePrev.copy( _moveCurr );
@@ -328,6 +328,10 @@ THREE.TrackballControls = function ( object, domElement ) {
 
 		}
 
+		if(this.need_update) {
+			this.need_update = false;
+			this.renderer.need_update = true;
+		}
 	};
 
 	this.reset = function () {
@@ -376,7 +380,7 @@ THREE.TrackballControls = function ( object, domElement ) {
 			_state = STATE.PAN;
 
 		}
-
+		this.need_update = true;
 	}
 
 	function keyup( event ) {
@@ -387,6 +391,7 @@ THREE.TrackballControls = function ( object, domElement ) {
 
 		window.addEventListener( 'keydown', keydown, false );
 
+		_this.need_update = true;
 	}
 
 	function mousedown( event ) {
@@ -424,6 +429,7 @@ THREE.TrackballControls = function ( object, domElement ) {
 
 		_this.dispatchEvent( startEvent );
 
+		_this.need_update = true;
 	}
 
 	function mousemove( event ) {
@@ -448,6 +454,7 @@ THREE.TrackballControls = function ( object, domElement ) {
 
 		}
 
+		_this.need_update = true;
 	}
 
 	function mouseup( event ) {
@@ -463,6 +470,7 @@ THREE.TrackballControls = function ( object, domElement ) {
 		document.removeEventListener( 'mouseup', mouseup );
 		_this.dispatchEvent( endEvent );
 
+		_this.need_update = true;
 	}
 
 	function mousewheel( event ) {
@@ -494,6 +502,7 @@ THREE.TrackballControls = function ( object, domElement ) {
 		_this.dispatchEvent( startEvent );
 		_this.dispatchEvent( endEvent );
 
+		_this.need_update = true;
 	}
 
 	function touchstart( event ) {
@@ -524,6 +533,7 @@ THREE.TrackballControls = function ( object, domElement ) {
 
 		_this.dispatchEvent( startEvent );
 
+		_this.need_update = true;
 	}
 
 	function touchmove( event ) {
@@ -552,6 +562,7 @@ THREE.TrackballControls = function ( object, domElement ) {
 
 		}
 
+		_this.need_update = true;
 	}
 
 	function touchend( event ) {
@@ -574,12 +585,14 @@ THREE.TrackballControls = function ( object, domElement ) {
 
 		_this.dispatchEvent( endEvent );
 
+		_this.need_update = true;
 	}
 
 	function contextmenu( event ) {
 
 		event.preventDefault();
 
+		_this.need_update = true;
 	}
 
 	this.dispose = function() {

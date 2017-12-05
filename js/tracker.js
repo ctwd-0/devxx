@@ -131,7 +131,7 @@ CTWD.Tracker = function(domElement) {
 		this.camera.position.copy(new THREE.Vector3(0,0,4));
 		this.camera.lookAt(new THREE.Vector3(0,0,0));
 
-		this.controls = new THREE.TrackballControls( this.camera, this.container);
+		this.controls = new THREE.TrackballControls( this.camera, this.container, this.renderer);
 		this.controls.noZoom = true;
 		this.controls.noPan = true;
 		this.controls.rotateSpeed = 1.0;
@@ -154,7 +154,7 @@ CTWD.Tracker = function(domElement) {
 		this.renderer.setPixelRatio( window.devicePixelRatio );
 		this.renderer.setSize( this.container.clientWidth, this.container.clientHeight );
 		this.container .appendChild( this.renderer.domElement );
-
+		this.renderer.need_update = true;
 		this.raycaster = new THREE.Raycaster();
 		
 		this.container.addEventListener('mousemove', this.on_move);

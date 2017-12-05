@@ -145,6 +145,7 @@ function triger_clear_filter_data() {
 	if(_viewer) {
 		_viewer.fe.show = false;
 	}
+	renderer.need_update = true;
 }
 
 function triger_filter_objects_fill_data(data) {
@@ -220,6 +221,8 @@ function triger_filter_objects(data) {
 	triger_filter_objects_fill_data(data);
 	
 	triger_filter_objects_set_meshes(data);
+
+	renderer.need_update = true;
 }
 
 function on_meta_index_group_ready() {
@@ -277,6 +280,7 @@ function load_xbjs_and_add_to_scene(mesh_to_load) {
 						root_meshes[sub_group_name].material = mesh.material;
 						root_meshes[sub_group_name].meshes = {};
 						scene.add(root_meshes[sub_group_name]);
+						renderer.need_update = true;
 					}
 					root_meshes[sub_group_name].add(mesh);
 					root_meshes[sub_group_name].meshes[mesh.name] = mesh;
@@ -284,6 +288,7 @@ function load_xbjs_and_add_to_scene(mesh_to_load) {
 				} else {
 					root_meshes[mesh.name] = mesh;
 					scene.add( mesh );
+					renderer.need_update = true;
 				}
 				if(names[obj_id].name === '') {
 					var box = new THREE.Box3();
@@ -426,6 +431,7 @@ function clear_transparency_and_color(meshes) {
 			meshes[key].material.transparent = false;
 		}
 	}
+	renderer.need_update = true;
 }
 
 function prepare_hr_meshes(name, box) {
@@ -486,7 +492,7 @@ function change_meshes_and_backup(name) {
 		current_model = name;
 		waiting_for_mesh = false;
 		clear_transparency_and_color(low_resolution_meshes);
-
+		renderer.need_update = true;
 	} else {
 		hr_mesh_ready_unchanged = {
 			name:name,
@@ -507,6 +513,7 @@ function rotate_to_certain_dir(dir) {
 	controls = null;
 	start_time = new Date().getTime();
 	state = STATE.ROTATE_TO_DIR; 
+	renderer.need_update = true;
 }
 
 function change_focous(mesh) {
@@ -531,6 +538,7 @@ function change_focous(mesh) {
 		focous_name = name;
 		prepare_hr_meshes(name, box);
 		waiting_for_mesh = true;
+		renderer.need_update = true;
 	}
 }
 
@@ -557,6 +565,7 @@ function direct_to_object(sub_group, object) {
 	state = STATE.DIRECT_TO_OBJECT;
 	prepare_hr_meshes(name, box);
 	waiting_for_mesh = true;
+	renderer.need_update = true;
 }
 
 function back_to_parent() {
@@ -581,6 +590,7 @@ function back_to_parent() {
 				}
 			}
 			state = STATE.BACK_TO_PARENT;
+			renderer.need_update = true;
 		}
 	} else {
 		return;
@@ -638,7 +648,12 @@ function init(box, _container) {
 	camera.position.copy(position);
 	camera.lookAt(target.clone());
 	
-	controls = new THREE.TrackballControls( camera, container);
+	renderer = new THREE.WebGLRenderer({antialias:true});
+	renderer.setPixelRatio( window.devicePixelRatio );
+	renderer.setSize( container.clientWidth, container.clientHeight );
+	renderer.need_update = true;
+
+	controls = new THREE.TrackballControls( camera, container, renderer);
 	controls.staticMoving = true;
 	controls.target = target.clone();
 	controls.update();
@@ -676,11 +691,9 @@ function init(box, _container) {
 
 	raycaster = new THREE.Raycaster();
 	
-	renderer = new THREE.WebGLRenderer({antialias:true});
-	renderer.setPixelRatio( window.devicePixelRatio );
-	renderer.setSize( container.clientWidth, container.clientHeight );
-	container.appendChild( renderer.domElement );
 
+
+	container.appendChild( renderer.domElement );
 	stats = new Stats();
 	stats.dom.style.position = "absolute";
 	container.appendChild( stats.dom );
@@ -706,9 +719,17 @@ function animate() {
 
 	requestAnimationFrame( animate );
 	
-	render();
+	if(controls){
+		controls.update();
+	}
 
-	tracker.render();
+	if(renderer.need_update){
+		render();
+	}
+
+	if(tracker.renderer.need_update) {
+		tracker.render();
+	}
 
 	stats.update();
 }
@@ -716,15 +737,13 @@ function animate() {
 function render() {
 
 	if(state == STATE.NONE) {
-		controls.update();
-
 		dir = camera.position.clone().sub(controls.target).normalize();
 
 		directionalLight.position.copy(dir);
 
 		//console.log(scene.children.length);
 		renderer.render( scene, camera );
-
+		renderer.need_update = false;
 	} else if(state == STATE.CHANGE_FOCOUS) {
 		render_change_focous();
 	} else if(state == STATE.BACK_TO_PARENT){
@@ -744,7 +763,7 @@ function render_change_focous() {
 		camera.position.copy(position1);
 		camera.lookAt(target1);
 
-		controls = new THREE.TrackballControls( camera, container );
+		controls = new THREE.TrackballControls( camera, container, renderer);
 		controls.staticMoving = true;
 		controls.target = target1.clone(); 
 		controls.update();
@@ -783,6 +802,7 @@ function render_change_focous() {
 		focous_name = '';
 		renderer.render( scene, camera );
 
+		renderer.need_update = false;
 	} else {
 		scaler = time / change_focous_duration;
 		var target = target0.clone().multiplyScalar(1 - scaler);
@@ -816,6 +836,7 @@ function render_change_focous() {
 		}
 
 		renderer.render( scene, camera );
+		renderer.need_update = true;
 	}
 }
 
@@ -825,7 +846,7 @@ function render_back_to_parent() {
 		camera.position.copy(position1);
 		camera.lookAt(target1);
 
-		controls = new THREE.TrackballControls( camera, container );
+		controls = new THREE.TrackballControls( camera, container, renderer);
 		controls.staticMoving = true;
 		controls.target = target1.clone(); 
 		controls.update();
@@ -845,6 +866,7 @@ function render_back_to_parent() {
 		clear_transparency_and_color(current_meshes);
 
 		renderer.render( scene, camera );
+		renderer.need_update = false;
 	} else {
 		scaler = time / change_focous_duration;
 		var target = target0.clone().multiplyScalar(1 - scaler);
@@ -865,6 +887,7 @@ function render_back_to_parent() {
 		}
 
 		renderer.render( scene, camera );
+		renderer.need_update = true;
 	}
 }
 
@@ -875,7 +898,7 @@ function render_rotate_to_dir() {
 		camera.up.copy(up1);
 		camera.lookAt(target1);
 
-		controls = new THREE.TrackballControls( camera, container );
+		controls = new THREE.TrackballControls( camera, container, renderer );
 		controls.staticMoving = true;
 		controls.target = target1.clone(); 
 		controls.update();
@@ -885,6 +908,7 @@ function render_rotate_to_dir() {
 		
 		state = STATE.NONE;
 		renderer.render( scene, camera );
+		renderer.need_update = false;
 	} else {
 		scaler = time / change_focous_duration;
 		var target = target0.clone().multiplyScalar(1 - scaler);
@@ -901,6 +925,7 @@ function render_rotate_to_dir() {
 		directionalLight.position.copy(dir);
 
 		renderer.render( scene, camera );
+		renderer.need_update = true;
 	}
 }
 
@@ -910,7 +935,7 @@ function render_direct_to_object() {
 		camera.position.copy(position1);
 		camera.lookAt(target1);
 
-		controls = new THREE.TrackballControls( camera, container );
+		controls = new THREE.TrackballControls( camera, container, renderer);
 		controls.staticMoving = true;
 		controls.target = target1.clone(); 
 		controls.update();
@@ -936,6 +961,7 @@ function render_direct_to_object() {
 
 		renderer.render( scene, camera );
 
+		renderer.need_update = false;
 	} else {
 		scaler = time / change_focous_duration;
 		var target = target0.clone().multiplyScalar(1 - scaler);
@@ -956,5 +982,6 @@ function render_direct_to_object() {
 		}
 
 		renderer.render( scene, camera );
+		renderer.need_update = true;
 	}
 }
