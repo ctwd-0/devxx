@@ -91,6 +91,23 @@ var box_left = 0;
 var selected_color = new THREE.Color(1,0,0);
 var selected_mesh = null;
 
+function try_change_photo() {
+	var model_id = '';
+	if(next_scene == 'g_1') {
+		model_id = 'g_7';
+	} else if(next_scene == 'o_15258' 
+		|| next_scene == 'o_15259' 
+		|| next_scene == 'o_15260' 
+		|| next_scene == 'o_15261' 
+		) {
+		model_id = 'o';
+	} else {
+		model_id = 'g_-1';
+	}
+	_viewer.change_photo(model_id);
+	next_scene = '';
+}
+
 function cancel_select() {
 	if(selected_mesh !== null) {
 		if(selected_mesh instanceof THREE.Group) {
@@ -183,6 +200,7 @@ function lookup_object_id(name) {
 
 function triger_direct_to_object(id) {
 	cancel_select();
+	next_scene = 'o_' + id;
 	var object_name = 'g_-1_o_' + id;
 	sub_group_id = check_sub_group('-1', id);
 	if(sub_group_id === -1 || sub_group_id === -2) {
@@ -501,12 +519,14 @@ var STATE = {
 	ROTATE_TO_DIR: 3,
 	DIRECT_TO_OBJECT: 4,
 };
+
 var target0, target1, position0, position1, up0, up1;
 var start_time;
 var change_focous_duration = 500;
 var back_to_parent_duration = 500;
 var rotate_to_dir_duration = 500;
 var state = STATE.NONE;
+var next_scene = '';
 
 
 var low_resolution_meshes = {};
@@ -637,6 +657,7 @@ function change_focous(mesh) {
 		//这已经是最后一层了
 		return;
 	} else {
+		next_scene = info[2] + '_' + info[3];
 		box = new THREE.Box3();
 		box.setFromObject(mesh);
 		target1 = box.getCenter();
@@ -688,6 +709,7 @@ function back_to_parent() {
 		if (model_stack.length) {
 			state = STATE.BACK_TO_PARENT;
 			parent_scene = model_stack.pop();
+			next_scene = parent_scene.model_name;
 			box = parent_scene.model_meshes._box;
 			target1 = box.getCenter();
 			target0 = controls.target.clone();
@@ -961,6 +983,7 @@ function render_change_focous() {
 		if(hinter) {
 			hinter.renderer.need_update = true;
 		}
+		try_change_photo();
 	} else {
 		scaler = time / change_focous_duration;
 		var target = target0.clone().multiplyScalar(1 - scaler);
@@ -1028,6 +1051,7 @@ function render_back_to_parent() {
 		if(hinter) {
 			hinter.renderer.need_update = true;
 		}
+		try_change_photo();
 	} else {
 		scaler = time / change_focous_duration;
 		var target = target0.clone().multiplyScalar(1 - scaler);
@@ -1126,6 +1150,7 @@ function render_direct_to_object() {
 		if(hinter) {
 			hinter.renderer.need_update = true;
 		}
+		try_change_photo();
 	} else {
 		scaler = time / change_focous_duration;
 		var target = target0.clone().multiplyScalar(1 - scaler);

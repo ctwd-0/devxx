@@ -199,12 +199,13 @@ CTWD.Tracker = function() {
 			
 			_this.raycaster.setFromCamera( mouse, _this.camera );
 			var intersects = _this.raycaster.intersectObjects( _this.scene.children, true);
-			if ( intersects.length > 0 ) {
-				for(var i in scene.children) {
-					if(_this.scene.children[i] instanceof THREE.Mesh) {
-						_this.scene.children[i].material.opacity = 0.5;
-					}
+			for(var i in scene.children) {
+				if(_this.scene.children[i] instanceof THREE.Mesh) {
+					_this.scene.children[i].material.opacity = 0.5;
 				}
+			}
+			if ( intersects.length > 0 ) {
+
 				intersects[0].object.material.opacity = 1.0;
 				_this.renderer.need_update = true;
 			}
