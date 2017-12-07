@@ -112,11 +112,7 @@ function try_change_photo() {
 
 function cancel_select() {
 	if(selected_mesh !== null) {
-		if(selected_mesh instanceof THREE.Group) {
-			selected_mesh.material.copy(selected_mesh.bak_material);
-		} else if(selected_mesh instanceof THREE.Mesh) {
-			selected_mesh.material = selected_mesh.bak_material;
-		}
+		selected_mesh.material.color = new THREE.Color(1,1,1);
 	}
 }
 
@@ -773,9 +769,22 @@ function on_double_click(event) {
 		}
 	}
 }
+var mouse_down_pos = null;
+
+function on_mouse_down(event) {
+	mouse_down_pos = new THREE.Vector2(event.offsetX, event.offsetY);
+}
 
 function on_click(event) {
+	if(mouse_down_pos === null
+		|| mouse_down_pos.x !== event.offsetX
+		|| mouse_down_pos.y !== event.offsetY
+		) {
+		mouse_down_pos = null;
+		return;
+	}
 	cancel_select();
+	mouse_down_pos = null;
 	if(state === STATE.NONE && waiting_for_mesh === false) {
 		mouse.x = ( event.offsetX / container.clientWidth ) * 2 - 1;
 		mouse.y = - ( event.offsetY / container.clientHeight ) * 2 + 1;
@@ -788,13 +797,10 @@ function on_click(event) {
 			var object = intersects[0].object;
 			if(object.parent instanceof THREE.Group) {
 				object = object.parent;
-				object.bak_material = object.material.clone();
 				object.material.color = selected_color;
 				selected_mesh = object;
 				renderer.need_update = true;
 			} else if(object instanceof THREE.Mesh) {
-				object.bak_material = object.material;
-				object.material = object.bak_material.clone();
 				object.material.color = selected_color;
 				selected_mesh = object;
 				renderer.need_update = true;
@@ -891,7 +897,8 @@ function init(box, _container) {
 	tracker.init(t_div);
 	
 	container.addEventListener( 'dblclick', on_double_click );
-	//container.addEventListener( 'click', on_click );
+	container.addEventListener( 'click', on_click );
+	container.addEventListener( 'mousedown', on_mouse_down );
 	
 	window.addEventListener( 'resize', onWindowResize, false );
 }
