@@ -75,6 +75,8 @@ var lookup = {};
 var group_info = {};
 var names = {};
 var ids = {};
+var rhino_csv = {};
+var csv_rhino = {};
 var group_count, root_groups = [];
 var meta_ready_count = 0;
 
@@ -188,6 +190,16 @@ function on_names(file_names) {
 	on_meta_index_group_ready();
 }
 
+function on_rhino_csv(data) {
+	var lines = data.split('\n');
+	lines.forEach(function(line) {
+		pts = line.split(',');
+		rhino_csv[pts[0]] = pts[1];
+		csv_rhino[pts[1]] = pts[0];
+	});
+	on_meta_index_group_ready();
+}
+
 function lookup_object_id(name) {
 	if(ids[name] === undefined) {
 		return -1;
@@ -252,7 +264,11 @@ function triger_filter_objects_fill_data(data) {
 		data[key].ids = [];
 		data[key].meshes = [];
 		for(var i in data[key].names) {
-			id = lookup_object_id(data[key].names[i]);
+			var name = data[key].names[i];
+			if(csv_rhino[name] !== undefined) {
+				name = csv_rhino[name];
+			}
+			id = lookup_object_id(name);
 			if(id !== -1 && id !== -2) {
 				if(data[key].ids.indexOf(id) === -1) {
 					sub_group_id = check_sub_group('-1', id);
@@ -327,7 +343,7 @@ function triger_filter_objects(data) {
 
 function on_meta_index_group_ready() {
 	meta_ready_count++;
-	if(meta_ready_count == 4) {
+	if(meta_ready_count == 5) {
 		//alert('meta_ready!');
 		load_root_groups();
 		current_model = 'g_' + root_groups[0];
@@ -833,24 +849,24 @@ function init(box, _container) {
 	directionalLight.position.set( 0, 0, 1 );
 	scene.add( directionalLight );
 
-	var loader_metadata = new THREE.FileLoader();
-	var loader_lookup = new THREE.FileLoader();
-	var loader_group_info = new THREE.FileLoader();
+	var file_loader = new THREE.FileLoader();
 	
-	loader_metadata.load('dist/model/_metadata', function(file) {
+	file_loader.load('dist/model/_metadata', function(file) {
 		on_metadata(file);
 	});
 	
-	loader_lookup.load('dist/model/_lookup', function(file) {
+	file_loader.load('dist/model/_lookup', function(file) {
 		on_lookup(file);
 	});
 	
-	loader_group_info.load('dist/model/_group_info', function(file) {
+	file_loader.load('dist/model/_group_info', function(file) {
 		on_group_info(file);
 	});
-
-	loader_group_info.load('dist/model/_names', function(file) {
+	file_loader.load('dist/model/_names', function(file) {
 		on_names(file);
+	});
+	file_loader.load('dist/model/_rhino_csv_id_maps.csv', function(file) {
+		on_rhino_csv(file);
 	});
 	
 	current_meshes = root_meshes;
