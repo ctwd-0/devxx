@@ -106,7 +106,7 @@ function try_change_photo() {
 	} else {
 		model_id = 'g_-1';
 	}
-	_viewer.change_photo(model_id);
+	bus.$emit("change_photo", model_id);
 	next_scene = '';
 }
 
@@ -249,9 +249,7 @@ function triger_clear_filter_data() {
 	}
 	
 	filter_data = null;
-	if(_viewer) {
-		_viewer.fe.show = false;
-	}
+	bus.$emit("cancel_filter", true);
 	renderer.need_update = true;
 }
 
