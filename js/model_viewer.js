@@ -515,7 +515,7 @@ function random_color() {
 	return new THREE.Color(Math.random(), Math.random(), Math.random());
 }
 
-function color_toc_ss_string(color) {
+function color_to_css_string(color) {
 	return 'rgb('
 		+Math.round(color.r*255)+','
 		+Math.round(color.g*255)+','
@@ -652,6 +652,13 @@ function rotate_to_certain_dir(dir) {
 	position1 = target1.clone().add(direction.setLength(size));
 	up0 = camera.up.clone();
 	up1 = new THREE.Vector3(0,1,0);
+	if (up1.clone().cross(dir).length() < 0.00001) {
+		if(direction.y > 0) {
+			up1 = new THREE.Vector3(0,0,-1);
+		} else {
+			up1 = new THREE.Vector3(0,0,1);
+		}
+	}
 	controls = null;
 	start_time = new Date().getTime();
 	state = STATE.ROTATE_TO_DIR; 
@@ -807,14 +814,14 @@ function on_click(event) {
 	}
 }
 
-function onWindowResize() {
+function update_webgl_container() {
 
 	camera.aspect = container.clientWidth / container.clientHeight;
 
 	camera.updateProjectionMatrix();
 
 	renderer.setSize( container.clientWidth , container.clientHeight );
-
+	renderer.need_update = true;
 }
 
 var container;
@@ -823,12 +830,9 @@ function init(box, _container) {
 	root_meshes._box = box.clone();
 	target = box.getCenter();
 	position = target.clone();
-	//position.z += (box.max.z - box.min.z)*2;
 	position.z += box.getSize().length() * _scaler;
 
 	container = _container;
-	//container = document.createElement( 'div' );
-	//document.body.appendChild( container );
 
 	camera = new THREE.PerspectiveCamera( 60, container.clientWidth / container.clientHeight, 1, 100000 );
 	camera.position.copy(position);
@@ -888,7 +892,6 @@ function init(box, _container) {
 	t_div.style.top = 0;
 	t_div.style.width = '150px';
 	t_div.style.height = '150px';
-	//t_div.style.border = '1px solid white';
 	container.appendChild(t_div);
 
 	tracker = new CTWD.Tracker();
@@ -898,7 +901,7 @@ function init(box, _container) {
 	container.addEventListener( 'click', on_click );
 	container.addEventListener( 'mousedown', on_mouse_down );
 	
-	window.addEventListener( 'resize', onWindowResize, false );
+	window.addEventListener( 'resize', update_webgl_container);
 }
 
 function animate() {
@@ -1074,7 +1077,7 @@ function render_back_to_parent() {
 		}
 		try_change_photo();
 	} else {
-		scaler = time / change_focous_duration;
+		scaler = time / back_to_parent_duration;
 		var target = target0.clone().multiplyScalar(1 - scaler);
 		target.add(target1.clone().multiplyScalar(scaler));
 		var position = position0.clone().multiplyScalar(1 - scaler);
@@ -1116,13 +1119,41 @@ function render_rotate_to_dir() {
 		renderer.render( scene, camera );
 		renderer.need_update = false;
 	} else {
-		scaler = time / change_focous_duration;
-		var target = target0.clone().multiplyScalar(1 - scaler);
+		scaler = time / rotate_to_dir_duration;
+		let temp_pos = new THREE.Vector3();
+		let dir0 = position0.clone().sub(target0);
+		let dir1 = position1.clone().sub(target1);
+		if(dir0.clone().cross(dir1).length() > 0.00001
+			|| dir0.clone().normalize().sub(dir1.clone().normalize()).length() < 0.00001
+			) {
+			temp_pos = dir0.clone().multiplyScalar(1 - scaler);
+			temp_pos.add(dir1.clone().multiplyScalar(scaler));
+		} else {
+			let middle0 = up0.clone().cross(dir0);
+			if(scaler <= 0.5) {
+				temp_pos = dir0.clone().multiplyScalar(0.5 - scaler);
+				temp_pos.add(middle0.clone().multiplyScalar(scaler));
+			} else {
+				scaler -= 0.5;
+				temp_pos = middle0.clone().multiplyScalar(0.5 - scaler);
+				temp_pos.add(dir1.clone().multiplyScalar(scaler));
+			}
+		}
+		temp_pos.normalize().multiplyScalar(dir0.length()*(1-scaler) + dir1.length()*scaler);
+
+		let target = target0.clone().multiplyScalar(1 - scaler);
 		target.add(target1.clone().multiplyScalar(scaler));
-		var position = position0.clone().multiplyScalar(1 - scaler);
-		position.add(position1.clone().multiplyScalar(scaler));
-		var up = up0.clone().multiplyScalar(1 - scaler);
+		let position = target.clone().add(temp_pos);
+		let up = up0.clone().multiplyScalar(1 - scaler);
 		up.add(up1.clone().multiplyScalar(scaler));
+
+
+		console.log('---------------------------------------------------');
+		console.log(target);
+		console.log(temp_pos);
+		console.log(position);
+		console.log(up);
+		
 		camera.position.copy(position);
 		camera.up.copy(up);
 		camera.lookAt(target);
