@@ -1,5 +1,6 @@
 var CTWD = CTWD||{};
-
+const PI = 3.14159265359;
+const PI_HALF = 1.5707963267949;
 CTWD.Tracker = function() {
 	var _this = this;
 	this.size = 1.0;
@@ -21,6 +22,8 @@ CTWD.Tracker = function() {
 	this.edge_material.color = new THREE.Color(0.16, 0.98, 0.05);
 	this.corner_material = this.defualt_material.clone();
 	this.corner_material.color = new THREE.Color(0.11, 0.25, 0.75);
+	this.character_material = this.defualt_material.clone();
+	this.character_material.color = new THREE.Color(0.11, 0.11, 0.11);
 
 	this.container;	
 
@@ -42,12 +45,10 @@ CTWD.Tracker = function() {
 		g_box = f_box.clone();
 		g_box.translate(0, off_f, 0);
 		m = new THREE.Mesh(g_box, this.face_material.clone());
-		//m.name = "skip";
 		result.push(m);
 		g_box = f_box.clone();
 		g_box.translate(0, -off_f, 0);
 		m = new THREE.Mesh(g_box, this.face_material.clone());
-		//m.name = "skip";
 		result.push(m);
 
 		f_box = new THREE.BoxGeometry(f_b, f_b, f_a);
@@ -121,6 +122,43 @@ CTWD.Tracker = function() {
 		return result;
 	};
 
+	this.add_character = function(group, rx, ry, rz, tx, ty, tz, scale = 0.04) {
+		let mesh = group.children[0];
+		mesh.geometry.center();
+		mesh.geometry.rotateX(rx);
+		mesh.geometry.rotateY(ry);
+		mesh.geometry.rotateZ(rz);
+		mesh.geometry.scale(scale, scale,scale);
+		mesh.geometry.translate(tx,ty, tz);
+		mesh.material = this.character_material.clone();
+		mesh.skip = true;
+		this.scene.add(mesh);
+		this.renderer.need_update = true;
+	};
+
+	this.load_characters = function() {
+		var manager = new THREE.LoadingManager();
+		var loader = new THREE.OBJLoader( manager );
+		loader.load('dist/characters/front.obj',function(mesh_front) {
+			_this.add_character(mesh_front, 0, 0, 0, 0, 0, 1);
+		});
+		loader.load('dist/characters/back.obj',function(mesh_back) {
+			_this.add_character(mesh_back, 0, PI, 0, 0, 0, -1);
+		});
+		loader.load('dist/characters/left.obj',function(mesh_left) {
+			_this.add_character(mesh_left, 0, -PI_HALF, 0, -1, 0, 0);
+		});
+		loader.load('dist/characters/right.obj',function(mesh_right) {
+			_this.add_character(mesh_right, 0, PI_HALF, 0, 1, 0, 0);
+		});
+		loader.load('dist/characters/up.obj',function(mesh_up) {
+			_this.add_character(mesh_up, -PI_HALF, 0, 0, 0, 1, 0);
+		});
+		loader.load('dist/characters/down.obj',function(mesh_down) {
+			_this.add_character(mesh_down, PI_HALF, 0, 0, 0, -1, 0);
+		});
+	};
+
 	this.init = function(ctn) {
 		this.container = ctn;
 		this.bricks = this.create_bricks(this.size, this.thick, this.gap);
@@ -162,6 +200,7 @@ CTWD.Tracker = function() {
 		this.container.addEventListener('dblclick', this.on_click);
 
 		this.renderer.need_update = true;
+		this.load_characters();
 	};
 
 	this.on_click = function() {
@@ -171,12 +210,15 @@ CTWD.Tracker = function() {
 			
 			_this.raycaster.setFromCamera( mouse, _this.camera );
 			var intersects = _this.raycaster.intersectObjects( _this.scene.children, true);
-			if ( intersects.length > 0 ) {
-				//intersects[0].object.material.opacity = 1.0;
-				if(intersects[0].object.name == "skip") {
-					return ;
+			let intersect = null;
+			for(var key in intersects) {
+				if(intersects[key].object.skip === undefined) {
+					intersect = intersects[key];
+					break;
 				}
-				rotate_to_certain_dir(intersects[0].object.geometry.boundingSphere.center.clone().normalize());
+			}
+			if ( intersect !== null ) {
+				rotate_to_certain_dir(intersect.object.geometry.boundingSphere.center.clone().normalize());
 			}
 		}
 	};
@@ -199,14 +241,20 @@ CTWD.Tracker = function() {
 			
 			_this.raycaster.setFromCamera( mouse, _this.camera );
 			var intersects = _this.raycaster.intersectObjects( _this.scene.children, true);
-			for(var i in scene.children) {
+			for(var i in _this.scene.children) {
 				if(_this.scene.children[i] instanceof THREE.Mesh) {
 					_this.scene.children[i].material.opacity = 0.5;
 				}
 			}
-			if ( intersects.length > 0 ) {
-
-				intersects[0].object.material.opacity = 1.0;
+			let intersect = null;
+			for(var key in intersects) {
+				if(intersects[key].object.skip === undefined) {
+					intersect = intersects[key];
+					break;
+				}
+			}
+			if ( intersect !== null ) {
+				intersect.object.material.opacity = 1.0;
 				_this.renderer.need_update = true;
 			}
 		}

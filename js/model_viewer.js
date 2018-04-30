@@ -388,7 +388,6 @@ function load_xbjs_and_add_to_scene(mesh_to_load) {
 				obj_id = obj_ids[3];
 				group_id = obj_ids[1];
 				sub_group = check_sub_group(group_id, obj_id);
-				//console.log(sub_group);
 				if(sub_group !== -1 && sub_group !== -2) {
 					sub_group_name = 'g_' + group_id + '_g_' + sub_group;
 					if(root_meshes[sub_group_name] === undefined) {
@@ -422,7 +421,6 @@ function load_xbjs_and_add_to_scene(mesh_to_load) {
 					h_div.style.bottom = 0;
 					h_div.style.width = '200px';
 					h_div.style.height = '200px';
-					//t_div.style.border = '1px solid white';
 					container.appendChild(h_div);
 
 					hinter = new CTWD.Hinter(boxes);
@@ -886,7 +884,7 @@ function init(box, _container) {
 	stats.dom.style.position = "absolute";
 	container.appendChild( stats.dom );
 
-	t_div = document.createElement('div');
+	let t_div = document.createElement('div');
 	t_div.style.position = "absolute";
 	t_div.style.right = 0;
 	t_div.style.top = 0;
@@ -907,7 +905,7 @@ function init(box, _container) {
 function animate() {
 
 	requestAnimationFrame( animate );
-	
+
 	if(controls){
 		controls.update();
 	}
@@ -942,7 +940,6 @@ function render() {
 
 		directionalLight.position.copy(dir);
 
-		//console.log(scene.children.length);
 		renderer.render( scene, camera );
 		renderer.need_update = false;
 	} else if(state == STATE.CHANGE_FOCOUS) {
@@ -1146,13 +1143,6 @@ function render_rotate_to_dir() {
 		let position = target.clone().add(temp_pos);
 		let up = up0.clone().multiplyScalar(1 - scaler);
 		up.add(up1.clone().multiplyScalar(scaler));
-
-
-		console.log('---------------------------------------------------');
-		console.log(target);
-		console.log(temp_pos);
-		console.log(position);
-		console.log(up);
 		
 		camera.position.copy(position);
 		camera.up.copy(up);
