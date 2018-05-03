@@ -376,42 +376,23 @@ function check_sub_group(group_id, obj_id) {
 
 function load_xbjs_and_add_to_scene(mesh_to_load) {
 	mesh_to_load.files.forEach(function (file) {
-		var file_loader = new THREE.FileLoader();
+		let file_loader = new THREE.FileLoader();
 		file_loader.setResponseType('arraybuffer');
 		file_loader.load('dist/model/' + file, function(binary) {
 			mesh_to_load[file].forEach(function(component) {
-				var mesh = xbj_loader.load(binary, component.offset);
+				box_left--;
+				let mesh = xbj_loader.load(binary, component.offset);
+				let obj_ids = mesh.name.split('_');
+				let obj_id = obj_ids[3];
+				let group_id = obj_ids[1];
 				if(component.as_name !== undefined) {
 					mesh.name = component.as_name;
 				}
-				obj_ids = mesh.name.split('_');
-				obj_id = obj_ids[3];
-				group_id = obj_ids[1];
-				sub_group = check_sub_group(group_id, obj_id);
-				if(sub_group !== -1 && sub_group !== -2) {
-					sub_group_name = 'g_' + group_id + '_g_' + sub_group;
-					if(root_meshes[sub_group_name] === undefined) {
-						root_meshes[sub_group_name] = new THREE.Group();
-						root_meshes[sub_group_name].name = sub_group_name;
-						root_meshes[sub_group_name].material = mesh.material;
-						root_meshes[sub_group_name].meshes = {};
-						scene.add(root_meshes[sub_group_name]);
-						renderer.need_update = true;
-					}
-					root_meshes[sub_group_name].add(mesh);
-					root_meshes[sub_group_name].meshes[mesh.name] = mesh;
-					mesh.material = root_meshes[sub_group_name].material;
-				} else {
-					root_meshes[mesh.name] = mesh;
-					scene.add( mesh );
-					renderer.need_update = true;
-				}
-				box_left--;
-				var box = new THREE.Box3();
+				let box = new THREE.Box3();
 				box.setFromObject(mesh);
-				var size = box.getSize();
-				var center = box.getCenter();
-				var box_geo = new THREE.BoxGeometry(size.x, size.y, size.z);
+				let size = box.getSize();
+				let center = box.getCenter();
+				let box_geo = new THREE.BoxGeometry(size.x, size.y, size.z);
 				box_geo.translate(center.x,center.y,center.z);
 				boxes[obj_id] = box_geo;
 				if(box_left == 0) {
@@ -432,9 +413,26 @@ function load_xbjs_and_add_to_scene(mesh_to_load) {
 					if(size.y < 40) ct++;
 					if(size.z < 40) ct++;
 					if(ct >= 2) {
-						mesh.visible = false;
+						return;
 					}
 				}
+
+				sub_group = check_sub_group(group_id, obj_id);
+				if(sub_group !== -1 && sub_group !== -2) {
+					sub_group_name = 'g_' + group_id + '_g_' + sub_group;
+					if(root_meshes[sub_group_name] === undefined) {
+						root_meshes[sub_group_name] = new THREE.Group();
+						root_meshes[sub_group_name].name = sub_group_name;
+						root_meshes[sub_group_name].material = mesh.material;
+						root_meshes[sub_group_name].meshes = {};
+						scene.add(root_meshes[sub_group_name]);
+						renderer.need_update = true;
+					}
+					root_meshes[sub_group_name].add(mesh);
+					root_meshes[sub_group_name].meshes[mesh.name] = mesh;
+					mesh.material = root_meshes[sub_group_name].material;
+				}
+				renderer.need_update = true;
 			});
 		});
 	});
