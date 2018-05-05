@@ -113,6 +113,7 @@ function try_change_photo() {
 function cancel_select() {
 	if(selected_mesh !== null) {
 		selected_mesh.material.color = new THREE.Color(1,1,1);
+		selected_mesh = null;
 	}
 }
 
@@ -266,21 +267,21 @@ function triger_direct_to_object(id) {
 
 var filter_data = null;
 
-function triger_clear_filter_data() {
+function clear_filter_data() {
 	cancel_select();
 	if(filter_data === null) {
 		return;
 	}
-	for(var key in current_meshes) {
+	for(let key in current_meshes) {
 		if(current_meshes[key] instanceof THREE.Object3D) {
 			current_meshes[key].material.transparent = false;
 			current_meshes[key].material.opacity = 1.0;
 		}
 	}
 
-	for(var type in filter_data) {
-		for(var key in filter_data[type].meshes) {
-			var mesh = filter_data[type].meshes[key].mesh;
+	for(let type in filter_data) {
+		for(let key in filter_data[type].meshes) {
+			let mesh = filter_data[type].meshes[key].mesh;
 			mesh.material = mesh.bak_material;
 		}
 	}
@@ -289,20 +290,43 @@ function triger_clear_filter_data() {
 	bus.$emit("cancel_filter", true);
 	renderer.need_update = true;
 }
-
-function triger_filter_objects_fill_data(data) {
-	for(var key in data) {
+function filter_objects_fill_data(data) {
+	if (current_model[0] === "o") {
+		let current_object = current_model.split("_")[1];
+		for(let key in data) {
+			data[key].ids = [];
+			data[key].meshes = [];
+			for(let i in data[key].names) {
+				let name = data[key].names[i];
+				if(csv_rhino[name] !== undefined) {
+					name = csv_rhino[name];
+				}
+				id = lookup_object_id(name);
+				if(id === current_object) {
+					data[key].ids.push(id);
+					mesh_name = current_model;
+					data[key].meshes.push({
+						mesh_name:mesh_name,
+						mesh: current_meshes[mesh_name],
+					}); 
+				}
+			}
+		}
+		return;
+	}
+	let current_group = current_model.split("_")[1];
+	for(let key in data) {
 		data[key].ids = [];
 		data[key].meshes = [];
-		for(var i in data[key].names) {
-			var name = data[key].names[i];
+		for(let i in data[key].names) {
+			let name = data[key].names[i];
 			if(csv_rhino[name] !== undefined) {
 				name = csv_rhino[name];
 			}
 			id = lookup_object_id(name);
 			if(id !== -1 && id !== -2) {
 				if(data[key].ids.indexOf(id) === -1) {
-					let sub_group_id = check_sub_group('-1', id);
+					let sub_group_id = check_sub_group(current_group, id);
 					if (sub_group_id === -2) {
 
 					} else if(sub_group_id === -1) {
@@ -329,7 +353,7 @@ function triger_filter_objects_fill_data(data) {
 	}
 }
 
-function triger_filter_objects_set_meshes(data) {
+function filter_objects_set_meshes(data) {
 	filter_data = data;
 	for(var key in current_meshes) {
 		if(current_meshes[key] instanceof THREE.Object3D) {
@@ -341,6 +365,8 @@ function triger_filter_objects_set_meshes(data) {
 	for(var type in data) {
 		for(var key in data[type].meshes) {
 			var mesh = data[type].meshes[key].mesh;
+			mesh.material.transparent = false;
+			mesh.material.opacity = 1;
 			mesh.bak_material = mesh.material;
 			mesh.material = mesh.bak_material.clone();
 			mesh.material.transparent = false;
@@ -353,23 +379,22 @@ function triger_filter_objects_set_meshes(data) {
 function triger_filter_objects(data) {
 	cancel_select();
 	if(filter_data !== null) {
-		triger_clear_filter_data();
-	}
-	
-	if(current_model !== 'g_-1') {
-		alert('暂时只支持在顶层过滤');
-		return ;
+		clear_filter_data();
 	}
 
-	if(data === {}) {
+	if(data === undefined || data == null) {
 		return;
 	}
 
-	triger_filter_objects_fill_data(data);
+	filter_objects_fill_data(data);
 	
-	triger_filter_objects_set_meshes(data);
+	filter_objects_set_meshes(data);
 
 	renderer.need_update = true;
+}
+
+function triger_clear_filter_data() {
+	clear_filter_data();
 }
 
 function on_meta_index_group_ready() {
@@ -638,6 +663,7 @@ function prepare_hr_meshes(name, box, direct_object_name) {
 
 function change_meshes_and_backup(name, high_resolution_meshes, direct_object_name) {
 	cancel_select();
+	clear_filter_data();
 	if(state === STATE.NONE) {
 		if(current_model === 'g_-1') {
 			low_resolution_meshes = root_meshes;
@@ -720,7 +746,7 @@ function rotate_to_certain_dir(dir) {
 
 function change_focous(mesh) {
 	cancel_select();
-	triger_clear_filter_data();
+	clear_filter_data();
 	name = mesh.name;
 	info = name.split('_');
 	if(info.length == 2) {
@@ -750,6 +776,7 @@ var direct_object = null;
 
 function direct_to_object(sub_group, object) {
 	cancel_select();
+	clear_filter_data();
 	direct_object = object;
 	object.bak_material = object.material;
 	object.material = object.bak_material.clone();
@@ -776,6 +803,7 @@ function direct_to_object(sub_group, object) {
 
 function back_to_parent() {
 	cancel_select();
+	clear_filter_data();
 	if(state === STATE.NONE && waiting_for_mesh === false) {
 		if (model_stack.length) {
 			state = STATE.BACK_TO_PARENT;
@@ -853,6 +881,7 @@ function on_click(event) {
 		var direction = raycaster.ray.direction;
 		var intersects = raycaster.intersectObjects( scene.children, true);
 		if ( intersects.length > 0 ) {
+			clear_filter_data();
 			var object = intersects[0].object;
 			if(object.parent instanceof THREE.Group) {
 				object = object.parent;
