@@ -190,19 +190,55 @@ function on_rhino_csv(data) {
 	var lines = data.split('\n');
 	lines.forEach(function(line) {
 		pts = line.split(',');
-		rhino_csv[pts[0]] = pts[1];
-		csv_rhino[pts[1]] = pts[0];
+		if (pts.length === 2) {
+			rhino_csv[pts[0]] = pts[1];
+			csv_rhino[pts[1]] = pts[0];
+		}
 	});
 	on_meta_index_group_ready();
 }
 
-function lookup_object_id(name) {
-	if(ids[name] === undefined) {
+function lookup_object_id(rhino_id) {
+	if(ids[rhino_id] === undefined) {
 		return -1;
-	} else if(ids[name].length != 1) {
+	} else if(ids[rhino_id].length != 1) {
 		return -2;
 	} else {
-		return ids[name][0].id;
+		return ids[rhino_id][0].id;
+	}
+}
+
+function triger_mv_direct_to_object(table_id) {
+	if(table_id === "") {
+		alert("构建编号不能为空");
+		return;
+	}
+	let rhino_id = table_id;
+	if (csv_rhino[table_id] !== undefined) {
+		rhino_id = csv_rhino[table_id];
+	}
+
+	let direct_model_id = lookup_object_id(rhino_id);
+	if (direct_model_id === -1 || direct_model_id === -2) {
+		if(direct_model_id === -1) {
+			alert("模型编号有误，请检查");
+		} else {
+			alert("该模型编号对应重复的构件，请检查");
+		}
+		return;
+	}
+
+	let sub_group_id = check_sub_group('-1', direct_model_id);
+	if (sub_group_id === -1 || sub_group_id === -2) {
+		alert('这个构件未被任何一个群组包含，请检查');
+		return;
+	}
+	if (model_stack.length !== 0) {
+		cancel_select();
+		back_to_parent_and_direct_id = direct_model_id;
+		back_to_parent();
+	} else{
+		triger_direct_to_object(direct_model_id);
 	}
 }
 
@@ -210,7 +246,7 @@ function triger_direct_to_object(id) {
 	cancel_select();
 	next_scene = 'o_' + id;
 	var object_name = 'g_-1_o_' + id;
-	sub_group_id = check_sub_group('-1', id);
+	let sub_group_id = check_sub_group('-1', id);
 	if(sub_group_id === -1 || sub_group_id === -2) {
 		alert('这个构件未被任何一个群组包含，请检查');
 	} else {
@@ -265,7 +301,7 @@ function triger_filter_objects_fill_data(data) {
 			id = lookup_object_id(name);
 			if(id !== -1 && id !== -2) {
 				if(data[key].ids.indexOf(id) === -1) {
-					sub_group_id = check_sub_group('-1', id);
+					let sub_group_id = check_sub_group('-1', id);
 					if (sub_group_id === -2) {
 
 					} else if(sub_group_id === -1) {
@@ -557,11 +593,13 @@ var parent_scene = {};
 
 var waiting_for_mesh = false;
 
+var back_to_parent_and_direct_id = -1;
+
 
 function clear_transparency_and_color(meshes) {
 	for(var key in meshes) {
 		if(meshes[key].material) {
-			meshes[key].material.color = new THREE.Color(1,1,1);
+			meshes[key].material.color = new THREE.Color(1, 1, 1);
 			meshes[key].material.transparent = false;
 		}
 	}
@@ -1071,6 +1109,15 @@ function render_back_to_parent() {
 			hinter.renderer.need_update = true;
 		}
 		try_change_photo();
+		if (back_to_parent_and_direct_id !== -1) {
+			if(model_stack.length === 0) {
+				let direct_id = back_to_parent_and_direct_id;
+				back_to_parent_and_direct_id = -1;
+				triger_direct_to_object(direct_id);
+			} else {
+				back_to_parent();
+			}
+		}
 	} else {
 		scaler = time / back_to_parent_duration;
 		var target = target0.clone().multiplyScalar(1 - scaler);
