@@ -252,17 +252,18 @@ function triger_direct_to_object(id) {
 	} else {
 		var group_name = 'g_-1_g_' + sub_group_id;
 		var sub_group = root_meshes[group_name];
-		var object = {};
+		var object = null;
 		for(var i in sub_group.children) {
 			if(sub_group.children[i].name === object_name) {
 				object = sub_group.children[i];
 			}
 		}
-		if(object !== {}) {
+		if(object !== null) {
 			direct_to_object(sub_group, object);
 		}
 	}
 }
+
 var filter_data = null;
 
 function triger_clear_filter_data() {
@@ -474,7 +475,7 @@ function load_xbjs_and_add_to_scene(mesh_to_load) {
 	});
 }
 
-function load_xbjs_adn_add_to_cache(mesh_to_load, cache, on_loading_finished) {
+function load_xbjs_and_add_to_cache(mesh_to_load, cache, on_loading_finished) {
 	var ready_files = [];
 	mesh_to_load.files.forEach(function (file) {
 		var file_loader = new THREE.FileLoader();
@@ -585,7 +586,7 @@ var model_stack = [];
 
 var current_model = '';
 
-var hr_mesh_ready_unchanged = {};
+var hr_mesh_ready_unchanged = null;
 
 var focous_name = '';
 
@@ -606,36 +607,36 @@ function clear_transparency_and_color(meshes) {
 	renderer.need_update = true;
 }
 
-function prepare_hr_meshes(name, box) {
+function prepare_hr_meshes(name, box, direct_object_name) {
 	info = name.split('_');
 	if(info.length === 2) {
 		//这已经是最后一层了
 		return;
 	} else if(info.length === 4) {
-		group = parseInt(info[1], 10);
-		next = parseInt(info[3], 10);
+		let hr_meshes_to_load = {files:[]};
 		if(info[2] === 'g') {
-			hr_meshes_to_load = {files:[]};
 			make_up_load_list([info[3]], hr_meshes_to_load);
 		} else if(info[2] === 'o'){
-			name_hr_meshes = [];
-			name_hr_meshes.push('o' + next);
 			hr_meshes_to_load = check_objects_files([info[3]]);
 		} else {
-			console.log('error prepare_hr_meshes. type: ', info[2]);
+			console.log('error prepare_hr_meshes. name: ', name);
 			return;
 		}
-		high_resolution_meshes = {};
-		load_xbjs_adn_add_to_cache(hr_meshes_to_load, high_resolution_meshes, function() {
+		if(direct_object_name !== undefined) {
+			let name = "o_" + direct_object_name.split("_")[3]
+			check_lookup(name, hr_meshes_to_load);
+		}
+		let high_resolution_meshes = {};
+		load_xbjs_and_add_to_cache(hr_meshes_to_load, high_resolution_meshes, function() {
 			high_resolution_meshes._box = box.clone();
-			change_meshes_and_backup(info[2] + '_' + info[3]);
+			change_meshes_and_backup(info[2] + '_' + info[3], high_resolution_meshes, direct_object_name);
 		});
 	} else {
 		console.log('error prepare_hr_meshes. name: ', name);
 	}
 }
 
-function change_meshes_and_backup(name) {
+function change_meshes_and_backup(name, high_resolution_meshes, direct_object_name) {
 	cancel_select();
 	if(state === STATE.NONE) {
 		if(current_model === 'g_-1') {
@@ -648,6 +649,13 @@ function change_meshes_and_backup(name) {
 			model_meshes: low_resolution_meshes,
 		});
 
+		if (direct_object_name !== undefined) {
+			model_stack.push({
+				model_name: name,
+				model_meshes: high_resolution_meshes,
+			});
+		}
+
 		for(var key in low_resolution_meshes) {
 			if(low_resolution_meshes[key] instanceof THREE.Object3D)
 			scene.remove(low_resolution_meshes[key]);
@@ -656,13 +664,22 @@ function change_meshes_and_backup(name) {
 			direct_object.material = direct_object.bak_material;
 			scene.remove(direct_object);
 		}
-		for(var key in high_resolution_meshes) {
-			if(high_resolution_meshes[key] instanceof THREE.Object3D) {
-				scene.add(high_resolution_meshes[key]);
+		if(direct_object_name === undefined) {
+			for(var key in high_resolution_meshes) {
+				if(high_resolution_meshes[key] instanceof THREE.Object3D) {
+					scene.add(high_resolution_meshes[key]);
+				}
 			}
+			current_meshes = high_resolution_meshes;
+			current_model = name;
+		} else {
+			let info = direct_object_name.split('_');
+			current_model = "o_" + info[3];
+			scene.add(high_resolution_meshes[current_model]);
+			current_meshes = [high_resolution_meshes[current_model]];
+			delete high_resolution_meshes[current_model];
 		}
-		current_meshes = high_resolution_meshes;
-		current_model = name;
+
 		waiting_for_mesh = false;
 		clear_transparency_and_color(low_resolution_meshes);
 		renderer.need_update = true;
@@ -672,6 +689,8 @@ function change_meshes_and_backup(name) {
 	} else {
 		hr_mesh_ready_unchanged = {
 			name:name,
+			high_resolution_meshes:high_resolution_meshes,
+			direct_object_name:direct_object_name,
 		};
 	}
 }
@@ -732,13 +751,14 @@ var direct_object = null;
 function direct_to_object(sub_group, object) {
 	cancel_select();
 	direct_object = object;
-	name = object.name;
 	object.bak_material = object.material;
 	object.material = object.bak_material.clone();
-	info = name.split('_');
 
-	box = new THREE.Box3();
+	let box = new THREE.Box3();
 	box.setFromObject(object);
+
+	let sub_group_box = new THREE.Box3();
+	sub_group_box.setFromObject(sub_group);
 
 	target1 = box.getCenter();
 	target0 = controls.target.clone();
@@ -749,7 +769,7 @@ function direct_to_object(sub_group, object) {
 	controls = null;
 	start_time = new Date().getTime();
 	state = STATE.DIRECT_TO_OBJECT;
-	prepare_hr_meshes(name, box);
+	prepare_hr_meshes(sub_group.name, sub_group_box, object.name);
 	waiting_for_mesh = true;
 	renderer.need_update = true;
 }
@@ -1020,9 +1040,13 @@ function render_change_focous() {
 			}
 		}
 
-		if(hr_mesh_ready_unchanged.name !== undefined) {
-			change_meshes_and_backup(hr_mesh_ready_unchanged.name);
-			hr_mesh_ready_unchanged = {};
+		if(hr_mesh_ready_unchanged !== null) {
+			change_meshes_and_backup(
+				hr_mesh_ready_unchanged.name,
+				hr_mesh_ready_unchanged.high_resolution_meshes,
+				hr_mesh_ready_unchanged.direct_object_name
+				);
+			hr_mesh_ready_unchanged = null;
 			waiting_for_mesh = false;
 		} else {
 			// for(var key in low_resolution_meshes) {
@@ -1218,9 +1242,13 @@ function render_direct_to_object() {
 		state = STATE.NONE;
 
 
-		if(hr_mesh_ready_unchanged.name !== undefined) {
-			change_meshes_and_backup(hr_mesh_ready_unchanged.name);
-			hr_mesh_ready_unchanged = {};
+		if(hr_mesh_ready_unchanged !== null) {
+			change_meshes_and_backup(
+				hr_mesh_ready_unchanged.name,
+				hr_mesh_ready_unchanged.high_resolution_meshes,
+				hr_mesh_ready_unchanged.direct_object_name
+				);
+			hr_mesh_ready_unchanged = null;
 			waiting_for_mesh = false;
 		} else {
 			// for(var key in low_resolution_meshes) {
