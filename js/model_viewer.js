@@ -93,8 +93,58 @@ var box_left = 0;
 var selected_color = new THREE.Color(1,0,0);
 var selected_mesh = null;
 
+
+function get_group_object_ids(group_id) {
+	let g_info = group_info[group_id]
+	let object_ids = [];
+	if(g_info !== undefined) {
+		for(let key in g_info.groups) {
+			let sub_object_ids = get_group_object_ids(g_info.groups[key]);
+			for(let index in sub_object_ids) {
+				object_ids.push(sub_object_ids[index]);
+			}
+		}
+		for(let key in g_info.objects) {
+			object_ids.push(g_info.objects[key]);
+		}
+	}
+
+	return object_ids
+}
+
+function try_change_table() {
+	let model_id = next_scene;
+	let type = model_id[0];
+	let id = model_id.substring(2);
+	let object_ids = [];
+
+	if (type === "o") {
+		object_ids.push(id);
+	} else {
+		object_ids = get_group_object_ids(id);
+	}
+
+	let table_filter = {};
+	table_filter["model_id"] = model_id;
+	for (let index in object_ids) {
+		let object_id = object_ids[index];
+		let info = names[object_id];
+		let rhino_id = info["name"];
+		if(rhino_id.trim() !== "") {
+			let table_id = rhino_id;
+			if(rhino_csv[rhino_id] !== undefined) {
+				table_id = rhino_csv[rhino_id];
+			}
+			table_filter[table_id] = true;
+		}
+	}
+	console.log(table_filter);
+	bus.$emit("table_filter_arrive", table_filter);
+}
+
 function try_change_photo() {
-	var model_id = '';
+	try_change_table();
+	let model_id = '';
 	if(next_scene == 'g_1') {
 		model_id = 'g_7';
 	} else if(next_scene == 'o_15258' 
@@ -290,6 +340,7 @@ function clear_filter_data() {
 	bus.$emit("cancel_filter", true);
 	renderer.need_update = true;
 }
+
 function filter_objects_fill_data(data) {
 	if (current_model[0] === "o") {
 		let current_object = current_model.split("_")[1];
