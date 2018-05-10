@@ -150,21 +150,25 @@ function try_change_table() {
 		object_ids = get_group_object_ids(id);
 	}
 
+	if (model_id === "g_-1") {
+		bus.$emit("table_filter_arrive", null);
+	} else {
 	let table_filter = {};
-	table_filter["model_id"] = model_id;
-	for (let index in object_ids) {
-		let object_id = object_ids[index];
-		let info = names[object_id];
-		let rhino_id = info["name"];
-		if(rhino_id.trim() !== "") {
-			let table_id = rhino_id;
-			if(rhino_csv[rhino_id] !== undefined) {
-				table_id = rhino_csv[rhino_id];
+		table_filter["model_id"] = model_id;
+		for (let index in object_ids) {
+			let object_id = object_ids[index];
+			let info = names[object_id];
+			let rhino_id = info["name"];
+			if(rhino_id.trim() !== "") {
+				let table_id = rhino_id;
+				if(rhino_csv[rhino_id] !== undefined) {
+					table_id = rhino_csv[rhino_id];
+				}
+				table_filter[table_id] = true;
 			}
-			table_filter[table_id] = true;
 		}
+		bus.$emit("table_filter_arrive", table_filter);
 	}
-	bus.$emit("table_filter_arrive", table_filter);
 }
 
 //因当前显示的群组变化，通知vue部分切换文件内容
@@ -1294,7 +1298,7 @@ function render_back_to_parent() {
 		if(hinter) {
 			hinter.renderer.need_update = true;
 		}
-		try_change_photo();
+		
 		if (back_to_parent_and_direct_id !== -1) {
 			if(model_stack.length === 0) {
 				let direct_id = back_to_parent_and_direct_id;
@@ -1303,6 +1307,8 @@ function render_back_to_parent() {
 			} else {
 				back_to_parent();
 			}
+		} else {
+			try_change_photo();
 		}
 	} else {
 		scaler = time / back_to_parent_duration;
