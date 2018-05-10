@@ -1,5 +1,6 @@
 var CTWD = CTWD||{};
 
+//右下角显示单个构件位置的装置
 CTWD.Hinter = function(boxes) {
 	var _this = this;
 	this.camera = {};

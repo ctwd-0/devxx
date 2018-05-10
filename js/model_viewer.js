@@ -1,3 +1,4 @@
+//一些颜色名，以及它们对应的值
 var ColorKeywords = { 
 	'aqua': 0x00FFFF, 'aquamarine': 0x7FFFD4,
 	'beige': 0xF5F5DC,   'blue': 0x0000FF, 'blueviolet': 0x8A2BE2,
@@ -24,6 +25,7 @@ var ColorKeywords = {
 	'springgreen': 0x00FF7F, 'steelblue': 0x4682B4, 'tan': 0xD2B48C, 'teal': 0x008080, 'thistle': 0xD8BFD8, 'tomato': 0xFF6347, 'turquoise': 0x40E0D0,
 	'violet': 0xEE82EE, 'wheat': 0xF5DEB3, 'cornsilk': 0xFFF8DC, 'cyan': 0x00FFFF, 'darkblue': 0x00008B, 'blanchedalmond': 0xFFEBCD,'bisque': 0xFFE4C4, 'yellowgreen': 0x9ACD32 };
 
+//固定的一些种颜色。如果超出范围，添加随机颜色
 var sel_color_dict= {
 	'01red':0xe6194b,
 	'02green': 0x3cb44b,
@@ -48,6 +50,8 @@ var sel_color_dict= {
 
 var _colors = [];
 
+
+// 将颜色们从数值转换为THREE.Color，并添加到数组
 for(var key in sel_color_dict) {
 	var color = new THREE.Color();
 	color.setHex(sel_color_dict[key]);
@@ -60,40 +64,61 @@ for(var key in ColorKeywords) {
 	_colors.push(color);
 }
 
+// 主体的容器dom，以及左上角显示渲染信息的东西
 var container, stats;
 
+// 摄像机， 操作控制器， 包含所有渲染内容的场景， 渲染器， 右上角，右下角
 var camera, controls, scene, renderer, tracker, hinter;
 
+// 环境光
 var directionalLight;
 
+// 储存当前鼠标位置
 var mouse = new THREE.Vector2();
 
+// 判断鼠标点在哪个构件上的东西
 var raycaster;
 
+//元数据，储存所有文件名等信息
 var metadata = {};
+//反查表，储存模型数据储存的文件和偏移量
 var lookup = {};
+//储存群组信息
 var group_info = {};
+
+//储存model_id 和 rhino_id的互查内容
 var names = {};
 var ids = {};
+
+//储存rhino_id和table_id的互查信息
 var rhino_csv = {};
 var csv_rhino = {};
+
+//总群组数目，以及根群组。实际上根群组只有一个，所以弃用。
 var group_count, root_groups = [];
+
+//记录加载的元数据文件个数。
 var meta_ready_count = 0;
 
+//自定义xbj格式加载器
 var xbj_loader = new CTWD.XBJLoader();
 
 var _viewer;
 
+//控制相机默认距离
 var _scaler = 0.6;
 
+//储存所有构件的包围盒
 var boxes = {};
 var box_count = 0;
 var box_left = 0;
 
+//被选中的颜色，以及被选中的构件
 var selected_color = new THREE.Color(1,0,0);
 var selected_mesh = null;
 
 
+//获取某个群组中所有构件的id数组。
 function get_group_object_ids(group_id) {
 	let g_info = group_info[group_id]
 	let object_ids = [];
@@ -112,6 +137,7 @@ function get_group_object_ids(group_id) {
 	return object_ids
 }
 
+//因当前显示的群组变化，通知vue部分切换数据表内容
 function try_change_table() {
 	let model_id = next_scene;
 	let type = model_id[0];
@@ -138,10 +164,10 @@ function try_change_table() {
 			table_filter[table_id] = true;
 		}
 	}
-	console.log(table_filter);
 	bus.$emit("table_filter_arrive", table_filter);
 }
 
+//因当前显示的群组变化，通知vue部分切换文件内容
 function try_change_photo() {
 	try_change_table();
 	let model_id = '';
@@ -160,6 +186,7 @@ function try_change_photo() {
 	next_scene = '';
 }
 
+//取消选中
 function cancel_select() {
 	if(selected_mesh !== null) {
 		selected_mesh.material.color = new THREE.Color(1,1,1);
@@ -167,6 +194,7 @@ function cancel_select() {
 	}
 }
 
+//metadata加载完成，处理。
 function on_metadata(file_metadata) {
 	var lines = file_metadata.split('\n');
 	lines.forEach(function(line) {
@@ -180,6 +208,7 @@ function on_metadata(file_metadata) {
 	on_meta_index_group_ready();
 }
 
+//lookup文件加载完成，处理。
 function on_lookup(file_lookup) {
 	var lines = file_lookup.split('\n');
 	lines.forEach(function(line) {
@@ -196,6 +225,7 @@ function on_lookup(file_lookup) {
 	on_meta_index_group_ready();
 }
 
+//group_info文件加载完成，处理。
 function on_group_info(file_group_info) {
 	var lines = file_group_info.split('\n');
 	group_count = lines[0];
@@ -218,6 +248,7 @@ function on_group_info(file_group_info) {
 	on_meta_index_group_ready();
 }
 
+//name文件加载完成，处理
 function on_names(file_names) {
 	var lines = file_names.split('\n');
 	lines.forEach(function(line) {
@@ -237,6 +268,7 @@ function on_names(file_names) {
 	on_meta_index_group_ready();
 }
 
+//rhino.csv文件加载完成处理。
 function on_rhino_csv(data) {
 	var lines = data.split('\n');
 	lines.forEach(function(line) {
@@ -249,6 +281,7 @@ function on_rhino_csv(data) {
 	on_meta_index_group_ready();
 }
 
+//返回rhino_id对应的model_id
 function lookup_object_id(rhino_id) {
 	if(ids[rhino_id] === undefined) {
 		return -1;
@@ -259,6 +292,7 @@ function lookup_object_id(rhino_id) {
 	}
 }
 
+//vue通知直接进入某个构件位置。信息处理阶段。
 function triger_mv_direct_to_object(table_id) {
 	if(table_id === "") {
 		alert("构建编号不能为空");
@@ -293,6 +327,7 @@ function triger_mv_direct_to_object(table_id) {
 	}
 }
 
+//vue通知直接进入某个构件位置。数据处理和史诗阶段。
 function triger_direct_to_object(id) {
 	cancel_select();
 	next_scene = 'o_' + id;
@@ -317,6 +352,7 @@ function triger_direct_to_object(id) {
 
 var filter_data = null;
 
+//清除按属性过滤给模型上的色
 function clear_filter_data() {
 	cancel_select();
 	if(filter_data === null) {
@@ -341,6 +377,7 @@ function clear_filter_data() {
 	renderer.need_update = true;
 }
 
+//按属性过滤模型。将模型分门别类装填。
 function filter_objects_fill_data(data) {
 	if (current_model[0] === "o") {
 		let current_object = current_model.split("_")[1];
@@ -404,6 +441,7 @@ function filter_objects_fill_data(data) {
 	}
 }
 
+//按照分好类的模型，对其进行上色。
 function filter_objects_set_meshes(data) {
 	filter_data = data;
 	for(var key in current_meshes) {
@@ -427,6 +465,7 @@ function filter_objects_set_meshes(data) {
 	}
 }
 
+//vue通知过滤。对模型进行分类并上色。
 function triger_filter_objects(data) {
 	cancel_select();
 	if(filter_data !== null) {
@@ -444,19 +483,23 @@ function triger_filter_objects(data) {
 	renderer.need_update = true;
 }
 
+//vue通知取消过滤。
 function triger_clear_filter_data() {
 	clear_filter_data();
 }
 
+//计数文件加载。
+//文件全部加载后，加载模型并显示
 function on_meta_index_group_ready() {
 	meta_ready_count++;
-	if(meta_ready_count == 5) {
+	if(meta_ready_count === 5) {
 		//alert('meta_ready!');
 		load_root_groups();
 		current_model = 'g_' + root_groups[0];
 	}
 }
 
+//加载根，即g_-1
 function load_root_groups() {
 	var mesh_to_load = {files:[]};
 	make_up_load_list(root_groups, mesh_to_load);
@@ -470,6 +513,7 @@ function load_root_groups() {
 	load_xbjs_and_add_to_scene(mesh_to_load);
 }
 
+//判断obj_id是否为group_id的子群组成员。
 function check_sub_group(group_id, obj_id) {
 	var g_info = group_info[group_id];
 	if(g_info.objects.indexOf(obj_id) != -1) {
@@ -487,6 +531,8 @@ function check_sub_group(group_id, obj_id) {
 	return -2;
 }
 
+//加载mesh_to_load指定的模型，并将它们全部加入到当前场景中渲染。
+//生成模型的包围盒备用。
 function load_xbjs_and_add_to_scene(mesh_to_load) {
 	mesh_to_load.files.forEach(function (file) {
 		let file_loader = new THREE.FileLoader();
@@ -551,6 +597,8 @@ function load_xbjs_and_add_to_scene(mesh_to_load) {
 	});
 }
 
+//加载指定模型文件，并将结果保存在cache中。
+//全部加载结束后，调用回调函数。
 function load_xbjs_and_add_to_cache(mesh_to_load, cache, on_loading_finished) {
 	var ready_files = [];
 	mesh_to_load.files.forEach(function (file) {
@@ -572,6 +620,7 @@ function load_xbjs_and_add_to_cache(mesh_to_load, cache, on_loading_finished) {
 	});
 }
 
+//将待加载的组件，按照它们所属的文件分类。
 function check_lookup(component_name, objcet_to_fill, as_name) {
 	file = lookup[component_name].file;
 	offset = lookup[component_name].offset;
@@ -590,6 +639,7 @@ function check_lookup(component_name, objcet_to_fill, as_name) {
 	objcet_to_fill[file].push(object);
 }
 
+//将待加载的构件，按照它们所属的文件分类。
 function check_objects_files(objects) {
 	mesh_to_load = {files:[]};
 	objects.forEach(function(object) {
@@ -599,6 +649,7 @@ function check_objects_files(objects) {
 	return mesh_to_load;
 }
 
+//加载某个群组。根据群组信息，生成加载列表。
 function make_up_load_list(groups, mesh_to_load, as_group) {
 	groups.forEach(function(group) {
 		if(group_info[group].groups.length != 0) {
@@ -620,10 +671,12 @@ function make_up_load_list(groups, mesh_to_load, as_group) {
 	});
 }
 
+//生成随机颜色
 function random_color() {
 	return new THREE.Color(Math.random(), Math.random(), Math.random());
 }
 
+//将THREE.Color转换为css string
 function color_to_css_string(color) {
 	return 'rgb('
 		+Math.round(color.r*255)+','
@@ -631,6 +684,7 @@ function color_to_css_string(color) {
 		+Math.round(color.b*255)+')';
 }
 
+//记录当前渲染状态
 var STATE = { 
 	NONE: -1, 
 	CHANGE_FOCOUS: 1,
@@ -639,6 +693,7 @@ var STATE = {
 	DIRECT_TO_OBJECT: 4,
 };
 
+//控制过场动画的数据。
 var target0, target1, position0, position1, up0, up1;
 var start_time;
 var change_focous_duration = 500;
@@ -648,31 +703,44 @@ var state = STATE.NONE;
 var next_scene = '';
 
 
+//保存要被替换的低分辨率mesh
 var low_resolution_meshes = {};
 
+//保存将要替换的高分辨率mesh
 var high_resolution_meshes = {};
 
+//保存需要被加载的高分辨率mesh
 var hr_meshes_to_load = [];
 
+//g_-1对应的mesh
 var root_meshes = {};
 
+//当前场景中渲染的mesh
 var current_meshes = {};
 
+//记录深入模型的层级，用来返回模型上一层。
 var model_stack = [];
 
+//当前渲染的model_id
 var current_model = '';
 
+//如果过场动画过程中高分辨率模型加载成功，保存在这里。等待过场动画结束后替换
 var hr_mesh_ready_unchanged = null;
 
+//直接进入到某个构件，对应的构件名称
 var focous_name = '';
 
+//上一层场景。
 var parent_scene = {};
 
+//高分辨率模型是否加载完成。
 var waiting_for_mesh = false;
 
+// 记录直接进入某一构件，但需要先向上级返回时的标记。
 var back_to_parent_and_direct_id = -1;
 
 
+//将mesh上所有的半透明和颜色去掉。
 function clear_transparency_and_color(meshes) {
 	for(var key in meshes) {
 		if(meshes[key].material) {
@@ -683,6 +751,7 @@ function clear_transparency_and_color(meshes) {
 	renderer.need_update = true;
 }
 
+//根据信息，加载高分辨率模型
 function prepare_hr_meshes(name, box, direct_object_name) {
 	info = name.split('_');
 	if(info.length === 2) {
@@ -712,6 +781,7 @@ function prepare_hr_meshes(name, box, direct_object_name) {
 	}
 }
 
+//使用高分辨率模型替换低分辨率模型，并将当前场景压栈。
 function change_meshes_and_backup(name, high_resolution_meshes, direct_object_name) {
 	cancel_select();
 	clear_filter_data();
@@ -772,6 +842,7 @@ function change_meshes_and_backup(name, high_resolution_meshes, direct_object_na
 	}
 }
 
+//旋转到某个指定角度。设定参数和状态。
 function rotate_to_certain_dir(dir) {
 	box = current_meshes._box;
 	target1 = box.getCenter();
@@ -795,6 +866,7 @@ function rotate_to_certain_dir(dir) {
 	renderer.need_update = true;
 }
 
+//直接视角切换到mesh上。设定参数和状态。
 function change_focous(mesh) {
 	cancel_select();
 	clear_filter_data();
@@ -825,6 +897,7 @@ function change_focous(mesh) {
 
 var direct_object = null;
 
+//直接进入某个构件。
 function direct_to_object(sub_group, object) {
 	cancel_select();
 	clear_filter_data();
@@ -852,6 +925,7 @@ function direct_to_object(sub_group, object) {
 	renderer.need_update = true;
 }
 
+//返回上一层。
 function back_to_parent() {
 	cancel_select();
 	clear_filter_data();
@@ -884,6 +958,7 @@ function back_to_parent() {
 	}
 }
 
+//双击事件处理。判断进入下一层或者返回上一层。
 function on_double_click(event) {
 	if(state === STATE.NONE && waiting_for_mesh === false) {
 		mouse.x = ( event.offsetX / container.clientWidth ) * 2 - 1;
@@ -913,6 +988,7 @@ function on_mouse_down(event) {
 	mouse_down_pos = new THREE.Vector2(event.offsetX, event.offsetY);
 }
 
+//单击事件处理。处理选中。
 function on_click(event) {
 	if(mouse_down_pos === null
 		|| mouse_down_pos.x !== event.offsetX
@@ -948,6 +1024,7 @@ function on_click(event) {
 	}
 }
 
+//处理窗口等尺寸变化。
 function update_webgl_container() {
 
 	camera.aspect = container.clientWidth / container.clientHeight;
@@ -960,6 +1037,7 @@ function update_webgl_container() {
 
 var container;
 
+//主窗口初始化。
 function init(box, _container) {
 	root_meshes._box = box.clone();
 	target = box.getCenter();
@@ -1038,6 +1116,7 @@ function init(box, _container) {
 	window.addEventListener( 'resize', update_webgl_container);
 }
 
+// 动画函数。每一帧调用一次。
 function animate() {
 
 	requestAnimationFrame( animate );
@@ -1069,6 +1148,7 @@ function animate() {
 	stats.update();
 }
 
+//渲染函数。animate调用。
 function render() {
 
 	if(state == STATE.NONE) {
@@ -1091,6 +1171,7 @@ function render() {
 	}
 }
 
+//渲染视角变化的动画
 function render_change_focous() {
 	time = new Date().getTime() - start_time;
 	if(time > change_focous_duration) {
@@ -1182,6 +1263,7 @@ function render_change_focous() {
 	}
 }
 
+//渲染返回上一层的动画
 function render_back_to_parent() {
 	time = new Date().getTime() - start_time;
 	if(time > back_to_parent_duration) {
@@ -1246,6 +1328,7 @@ function render_back_to_parent() {
 	}
 }
 
+//渲染旋转到指定角度的动画
 function render_rotate_to_dir() {
 	time = new Date().getTime() - start_time;
 	if(time > rotate_to_dir_duration) {
@@ -1305,6 +1388,7 @@ function render_rotate_to_dir() {
 	}
 }
 
+//渲染直接进入某构件的动画
 function render_direct_to_object() {
 	time = new Date().getTime() - start_time;
 	if(time > change_focous_duration) {

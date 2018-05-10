@@ -1,5 +1,7 @@
 var CTWD = CTWD||{};
 
+
+//自定义格式xbj的加载器
 CTWD.XBJLoader = function() {
 
 };

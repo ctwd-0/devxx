@@ -1,6 +1,8 @@
 var CTWD = CTWD||{};
 const PI = 3.14159265359;
 const PI_HALF = 1.5707963267949;
+
+//右上角快速旋转到指定位置的工具
 CTWD.Tracker = function() {
 	var _this = this;
 	this.size = 1.0;
