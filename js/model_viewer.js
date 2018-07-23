@@ -174,18 +174,7 @@ function try_change_table() {
 //因当前显示的群组变化，通知vue部分切换文件内容
 function try_change_photo() {
 	try_change_table();
-	let model_id = '';
-	if(next_scene == 'g_1') {
-		model_id = 'g_7';
-	} else if(next_scene == 'o_15258' 
-		|| next_scene == 'o_15259' 
-		|| next_scene == 'o_15260' 
-		|| next_scene == 'o_15261' 
-		) {
-		model_id = 'o';
-	} else {
-		model_id = 'g_-1';
-	}
+	let model_id = next_scene;
 	bus.$emit("change_photo", model_id);
 	next_scene = '';
 }
