@@ -361,7 +361,9 @@ function clear_filter_data() {
 	for(let type in filter_data) {
 		for(let key in filter_data[type].meshes) {
 			let mesh = filter_data[type].meshes[key].mesh;
-			mesh.material = mesh.bak_material;
+			if (mesh !== undefined) {
+				mesh.material = mesh.bak_material;
+			}
 		}
 	}
 	
@@ -447,13 +449,15 @@ function filter_objects_set_meshes(data) {
 	for(var type in data) {
 		for(var key in data[type].meshes) {
 			var mesh = data[type].meshes[key].mesh;
-			mesh.material.transparent = false;
-			mesh.material.opacity = 1;
-			mesh.bak_material = mesh.material;
-			mesh.material = mesh.bak_material.clone();
-			mesh.material.transparent = false;
-			mesh.material.opacity = 1.0;
-			mesh.material.color = data[type].color;
+			if (mesh !== undefined) {
+				mesh.material.transparent = false;
+				mesh.material.opacity = 1;
+				mesh.bak_material = mesh.material;
+				mesh.material = mesh.bak_material.clone();
+				mesh.material.transparent = false;
+				mesh.material.opacity = 1.0;
+				mesh.material.color = data[type].color;
+			}
 		}
 	}
 }

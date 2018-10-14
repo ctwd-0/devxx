@@ -50,7 +50,11 @@ CTWD.XBJLoader.prototype = {
 		// } else 
 		if(nb_double == 4) {
 			for(var i = 0; i < nb_vertices * 3; i++) {
-				vertices.push(data_view.getFloat32(offset + i * 4, is_little));
+				if (i % 3 === 1) {
+					vertices.push(-1*data_view.getFloat32(offset + i * 4, is_little));
+				} else  {
+					vertices.push(data_view.getFloat32(offset + i * 4, is_little));
+				}
 			}
 			offset += nb_vertices * 3 * 4;
 		} else {
